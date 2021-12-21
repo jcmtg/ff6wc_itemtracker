@@ -1,23 +1,15 @@
 {
-	"name": "FFVI Worlds Collide - Item Tracker (jcmtg)",
+	"name": "FFVI Worlds Collide - Item Tracker",
 	"game_name": "Final Fantasy VI",
 	"platform": "snes",
 	"package_version": "0.2.0",
-	"package_uid": "ff6wc_jcmtg",
+	"package_uid": "ff6wc_itemtracker",
 	"author": "jcmtg",
 	"variants":
 	{
-		"standard":
-		{
-			"display_name": "Gated Tracker"
-		},
 		"items_only":
 		{
-			"display_name": "Item Tracker"
-		},
-    "map_tracker":
-    {
-      "display_name": "Map Tracker"
-    }
+		"display_name": "Item Tracker"
+		}
 	}
 }

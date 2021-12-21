@@ -86,6 +86,7 @@ CONTEXT_MENU_3 = 0xC3
 
 
 --sub contexts
+NUM_SUB_CONTEXTS_TO_CARE_ABOUT = 15
 --significants:
 CONTEXT_MENU_LOAD_SAVE = 0x23
 
@@ -153,6 +154,9 @@ gShopList_table = {}
 
 gPrevSubMenuContexts_table = {}
 
+gReTriggerWhenItemIsFound_ShouldWe = false;
+gReTriggerWhenItemIsFound_Qty = -44;
+		
  
 
 
@@ -199,6 +203,7 @@ function updatePlayerModeContext(segment)
                 --print("		updatePlayerModeContext...3")
                 resetCurrentMode()
                 gInMenu = true
+				table.insert(gPrevSubMenuContexts_table, CONTEXT_MENU_3) --push
             end
         end
     end
@@ -248,22 +253,22 @@ function updatePlayerModeMenuSubContext(segment)
     end
 
     local readVal = segment:ReadUInt8(START_CONTEXT_MENU_SUB_ADDRESS)
+	gInMenu_SubType = readVal
 
 	local lengthOfgPrevSubMenuContexts_table = 0
     for _ in pairs(gPrevSubMenuContexts_table) do lengthOfgPrevSubMenuContexts_table = lengthOfgPrevSubMenuContexts_table + 1 end
     
-	if lengthOfgPrevSubMenuContexts_table > 10 then
-		table.remove(gPrevSubMenuContexts_table, 1)
+	if lengthOfgPrevSubMenuContexts_table > NUM_SUB_CONTEXTS_TO_CARE_ABOUT then
+		table.remove(gPrevSubMenuContexts_table, 1) --pop
 	end
-	table.insert(gPrevSubMenuContexts_table, readVal)
-
+	table.insert(gPrevSubMenuContexts_table, readVal) --push
+	print("		 updatePlayerModeMenuSubContext() ----------------->push"..readVal.." <----------------------")
 
 	 
 
-    print("		updatePlayerModeMenuSubContext() sub context menu is.."..readVal)
-	print("		gPrevInMenu_SubType:"..gPrevInMenu_SubType)
-	gPrevInMenu_SubType = gInMenu_SubType
-	gInMenu_SubType = readVal
+    print("		current sub context: "..readVal)
+	 
+	
 
 
 
@@ -272,7 +277,7 @@ function updatePlayerModeMenuSubContext(segment)
 		return
 	end
 
-	if isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE) then
+	if isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE) or isInPrevSubMenuContexts(CONTEXT_MENU_3) then
 		print("		isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE)")
 		gInMenu_Significant = true
 
@@ -451,7 +456,12 @@ function updateInventoryItems(segment)
                 gTemp_DepletedItemID = gInventoryItems[i]
             end
 
-            
+            if gReTriggerWhenItemIsFound_ShouldWe then
+				updateTrackerItem(readVal, gReTriggerWhenItemIsFound_Qty )
+				
+				gReTriggerWhenItemIsFound_ShouldWe = false
+
+			end
             
             gInventoryItems[i] = readVal
 
@@ -543,7 +553,7 @@ function isInPrevSubMenuContexts(contextid)
 
     for index, value in ipairs(gPrevSubMenuContexts_table) do
         
-        if value == itemid then
+        if value == contextid then
             print("		prevContext: "..value.." *")
             return true
 		else
@@ -1810,7 +1820,13 @@ end
 function updateTrackerItem(itemid_input, qty, backup_i)
 	print("START updateTrackerItem()")
 	local itemid
-	if itemid_input == 0xFF and backup_i ~= nil then
+	if itemid_input == 0xFF and backup_i ~= nil and gInventoryItems[backup_i] ~= 0xFF then
+		print("		item name change hasn't happened yet.... WAITING FOR IT!")
+		gReTriggerWhenItemIsFound_ShouldWe = true;
+		gReTriggerWhenItemIsFound_Qty = qty;
+		
+		return
+	elseif itemid_input == 0xFF and backup_i ~= nil and gInventoryItems[backup_i] ~= 0xFF then
 		print("		updateTrackerItem() -> *** handling EMPTY ITEM: new item: "..gInventoryItems[backup_i])
 		itemid = gInventoryItems[backup_i]
 	else
@@ -1819,24 +1835,19 @@ function updateTrackerItem(itemid_input, qty, backup_i)
 
 
 	activateItemLabel(gItemNames[itemid])
-	print("		updateTrackerItem() gInMenu_SubType == "..gInMenu_SubType..".......item: "..gItemNames[itemid].." qty: "..qty)
+	print("		updateTrackerItem() gInMenu_SubType == "..gInMenu_SubType.."...gInMenu_Significant: "..tostring(gInMenu_Significant).."....item: "..gItemNames[itemid].." qty: "..qty)
 	--print("		qty"..qty)
 
-	if gInMenu == true and gInMenu_SubType == CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE and qty < 0 then --menu use
-		print("		a")
-		incrementItem("use", itemid, qty)
-	elseif gInMenu == true and gInMenu_SubType == CONTEXT_MENU_SUB_ITEMS_BROWSE and qty < 0 then --menu use deplete?
-		print("		b")
-		incrementItem("use", itemid, qty)
-	elseif gInMenu == true and gInMenu_SubType == CONTEXT_TRANSITION and qty < 0 then --menu use deplete?
-		print("		c")
-		incrementItem("use", itemid, qty)
-	elseif gInMenu == true and (gInMenu_SubType >= CONTEXT_MENU_SUB_SHOP_BUY_1 and gInMenu_SubType <= CONTEXT_MENU_SUB_SHOP_BUY_3) and qty > 0 then --buy
+	
+	if gInMenu == true and (gInMenu_SubType >= CONTEXT_MENU_SUB_SHOP_BUY_1 and gInMenu_SubType <= CONTEXT_MENU_SUB_SHOP_BUY_3) and qty > 0 then --buy
 		print("		d")
 		incrementItem("buy", itemid, qty)
 	elseif gInMenu == true and (gInMenu_SubType >= CONTEXT_MENU_SUB_SHOP_SELL_1 and gInMenu_SubType <= CONTEXT_MENU_SUB_SHOP_SELL_3) and qty < 0  then --sell
 		print("		e")
 		incrementItem("sell", itemid, qty)
+	elseif gInMenu == true and gInMenu_Significant == true and qty < 0 then --menu use
+		print("		AA")
+		incrementItem("use", itemid, qty)
 	elseif gInCave == true then 
 		print("		f")
 		if gLastColosseumFightIsAGo == true then
@@ -2392,7 +2403,7 @@ ScriptHost:AddMemoryWatch("updateCurrentArea", CURRENT_AREA, 1, updateCurrentAre
 -- [x]SHOP enter: doesn't pick it up [x] introduced global flag for fix.
 -- [x]battle-used items being placed on the upd-inv-skip-list were bring skipped but their qty wasn't being updated in upd-inv-list, caused +1 use after the _next_ battle. fixed.
 -- [x]AIRship unequip all, increments up items. also kohligen guy (who even uses that guy?)
--- [ ]airship [x]buy/[x]sell/[ ]item-use in same zone-area as unequip guy: are being ignored. partial fix. see below bug.
+-- [x]airship [x]buy/[x]sell/[ ]item-use in same zone-area as unequip guy: are being ignored. partial fix. see below bug.
 -- [x] party menu item use. Depleting an item is not being captured. Uses prior to depletion are being captured. Fixed via gPrev flag.
 
 -- KNOWN minor  ISSUES / limitations
@@ -2402,7 +2413,7 @@ ScriptHost:AddMemoryWatch("updateCurrentArea", CURRENT_AREA, 1, updateCurrentAre
 --        something easier to ignore while you're playing? Maybe the following...
 -- UI: considering making Uber Items yellow in tracker. Ragnarok, Illumina, Minerva etc.
 -- BATTLE: Steal/Throw command - items update at end of battle.
-
+-- BATTLE: Item usage that results in non-consumption i.e. after use, but before animation, like when u kill a boss -- still registers as a 'use'.
 
 --KNOWN BUGS
 -- [ ] sometimes, new character Equipment activates label but not Qty. This may be due to FAST menuing and the item_qty code executing faster than item_name code can update.

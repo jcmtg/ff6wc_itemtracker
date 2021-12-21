@@ -485,6 +485,8 @@ function updateInventoryItemQuantities(segment)
 			print("		------------------IGNORING DUDE WHO UNEQUIP EVERYTHING -------------------------------------")
 			return
 		end
+	else
+		print("		AREA is OK")
 	end
 
 	--gInventoryQuantities is initialized with zeroes (0).
@@ -493,6 +495,7 @@ function updateInventoryItemQuantities(segment)
       
 		qty = segment:ReadUInt8(START_INVENTORY_QUANTITIES+i)
 		if isItemInSkipList(gInventoryItems[i]) == true then
+			print("		updateInventoryItemQuantities() -> isItemInSkipList(gInventoryItems[i]) == true")
 			gInventoryQuantities[i] = qty
 		elseif gInventoryQuantities[i] ~= qty then
 			print("		updateInventoryItemQuantities() -> gInventoryQuantities[i] ~= qty SOMETHING CHANGED")
@@ -503,9 +506,9 @@ function updateInventoryItemQuantities(segment)
 				if qty == 0 then
 					print("		1")
 					if gTemp_DepletedItemID == -1 or gTemp_DepletedItemID == nil then
-						updateTrackerItem(gInventoryItems[i], gInventoryQuantities[i] * -1, i   )
+						updateTrackerItem(gInventoryItems[i], gInventoryQuantities[i] * -1)
 					else
-						updateTrackerItem(gTemp_DepletedItemID, gInventoryQuantities[i] * -1, i   )
+						updateTrackerItem(gTemp_DepletedItemID, gInventoryQuantities[i] * -1)
 					end
 					
 					--may have been used
@@ -520,14 +523,14 @@ function updateInventoryItemQuantities(segment)
 						--may have been a chest/pot/Reward
 						--may have been bought / won
 						print("		3")
-						updateTrackerItem(gInventoryItems[i], qty - gInventoryQuantities[i], i )
+						updateTrackerItem(gInventoryItems[i], qty - gInventoryQuantities[i])
 					elseif gInventoryQuantities[i] > qty then -- old qty was more than new qty
 						--may have been sold
 						--may have been used
 						--may have been thrown/used in battle?
 						--may have been colliseum wagered and spent.
 						print("		4")
-						updateTrackerItem(gInventoryItems[i], (gInventoryQuantities[i] - qty) * -1, i )
+						updateTrackerItem(gInventoryItems[i], (gInventoryQuantities[i] - qty) * -1)
 					end
 				end
 			else
@@ -1817,18 +1820,15 @@ function updateSpecial(segment)
   
 end
  
-function updateTrackerItem(itemid_input, qty, backup_i)
-	print("START updateTrackerItem()")
+function updateTrackerItem(itemid_input, qty)
+	print("START updateTrackerItem()... itemid_input: "..itemid_input.." qty: "..qty)
 	local itemid
-	if itemid_input == 0xFF and backup_i ~= nil and gInventoryItems[backup_i] ~= 0xFF then
+	if itemid_input == 0xFF then
 		print("		item name change hasn't happened yet.... WAITING FOR IT!")
 		gReTriggerWhenItemIsFound_ShouldWe = true;
 		gReTriggerWhenItemIsFound_Qty = qty;
 		
 		return
-	elseif itemid_input == 0xFF and backup_i ~= nil and gInventoryItems[backup_i] ~= 0xFF then
-		print("		updateTrackerItem() -> *** handling EMPTY ITEM: new item: "..gInventoryItems[backup_i])
-		itemid = gInventoryItems[backup_i]
 	else
 		itemid = itemid_input
 	end

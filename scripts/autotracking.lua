@@ -2,14 +2,14 @@
 AUTOTRACKER_ENABLE_DEBUG_LOGGING = true
 -------------------------------------------------------
 
-print("		")
-print("		Active Auto-Tracker Configuration")
-print("		---------------------------------------------------------------------")
+--print("		")
+--print("		Active Auto-Tracker Configuration")
+--print("		---------------------------------------------------------------------")
 if AUTOTRACKER_ENABLE_DEBUG_LOGGING then
-    print("		Enable Debug Logging:        ", "true")
+    --print("		Enable Debug Logging:        ", "true")
 end
-print("		---------------------------------------------------------------------")
-print("		")
+--print("		---------------------------------------------------------------------")
+--print("		")
 
 --
 -- Script variables
@@ -23,8 +23,20 @@ function autotracker_started()
 end
 
  
-
-
+BATTLE_COUNTER = 0x7E3A44
+gBattleCounter1 = 0x00
+gBattleCounter2 = 0x00
+BATTLE_PARTY_SLOTS_BITMASK = 0x7E201D
+gBattlePartySlotsActive = {}
+gBattlePartySlotsActive[0] = false
+gBattlePartySlotsActive[1] = false
+gBattlePartySlotsActive[2] = false
+gBattlePartySlotsActive[3] = false
+gNewbattleEquipScan = false
+gNewbattleInventoryScan = false
+gBattleEquipIsValid = false
+gBattleInventoryIsValid = false
+gBattleItemsToSkip_table = {}
 
 gCharacterNames = {}
 gCharactersActiveStatus = {}
@@ -38,15 +50,17 @@ gInventoryQuantities = {}
 
 gBattleInventoryItems = {}
 gBattleInventoryQuantities = {}
-gBattleInventoryNeedsInit = true
-print("global set -> [x] SET gBattleInventoryNeedsInit = false")
+gPrevBattleInventoryItems = {}
+gPrevBattleInventoryQuantities = {}
+
+
 
 gBattleEquipItems = {}
+gPrevBattleEquipItems = {}
 --gBattleEquipItemsQuantities = {}
 gBattleEquipItemsNeedsInit = true
 
 gBattleItemsToSkip_table = {}
-gTrackBattleEquipChange = -1
 gTemp_DepletedItemID = -1
 BATTLE_NUM_ALIVE_MONSTERS = 0x7E3ECA
 gBattleNumAliveMonsters = -1
@@ -62,6 +76,18 @@ START_INVENTORY_ITEMS = 0x7E1869
 START_INVENTORY_QUANTITIES = 0x7E1969
 
 START_BATTLE_INVENTORY = 0x7E2686
+BATTLE_INVENTORY_INIT_1 = {}
+BATTLE_INVENTORY_INIT_1[0] = 0x1F
+BATTLE_INVENTORY_INIT_1[1] = 0x00
+BATTLE_INVENTORY_INIT_1[2] = 0x00
+BATTLE_INVENTORY_INIT_1[3] = 0x00
+
+BATTLE_INVENTORY_INIT_2 = {}
+BATTLE_INVENTORY_INIT_2[0] = 0x54
+BATTLE_INVENTORY_INIT_2[1] = 0x55
+BATTLE_INVENTORY_INIT_2[2] = 0x54
+BATTLE_INVENTORY_INIT_2[3] = 0x55 
+ 
 
 -- ARMOR_OR_HELM_BATTLE_INVENTORY = 0x80
 -- SHIELD_BATTLE_INVENTORY = 0xB0
@@ -71,6 +97,36 @@ START_BATTLE_INVENTORY = 0x7E2686
 -- ROD_BATTLE_INVENTORY = 0x10
 
 START_BATTLE_RIGHT_HAND_EQUIPPED = 0x7E2B86
+
+BATTLE_EQUIP_INIT_1 = {}
+BATTLE_EQUIP_INIT_1[0] = 0x28
+BATTLE_EQUIP_INIT_1[1] = 0x08
+BATTLE_EQUIP_INIT_1[2] = 0xC0
+BATTLE_EQUIP_INIT_1[3] = 0x00
+BATTLE_EQUIP_INIT_1[4] = 0x74
+BATTLE_EQUIP_INIT_1[5] = 0x60
+BATTLE_EQUIP_INIT_1[6] = 0x20
+BATTLE_EQUIP_INIT_1[7] = 0x30
+
+BATTLE_EQUIP_INIT_2 = {}
+BATTLE_EQUIP_INIT_2[0] = 0xFF
+BATTLE_EQUIP_INIT_2[1] = 0xCC
+BATTLE_EQUIP_INIT_2[2] = 0xFF
+BATTLE_EQUIP_INIT_2[3] = 0xFF
+BATTLE_EQUIP_INIT_2[4] = 0x83
+BATTLE_EQUIP_INIT_2[5] = 0x01
+BATTLE_EQUIP_INIT_2[6] = 0xFF
+BATTLE_EQUIP_INIT_2[7] = 0x7F
+
+BATTLE_EQUIP_INIT_3 = {}
+BATTLE_EQUIP_INIT_3[0] = 0x54
+BATTLE_EQUIP_INIT_3[1] = 0x55
+BATTLE_EQUIP_INIT_3[2] = 0x54
+BATTLE_EQUIP_INIT_3[3] = 0x55
+BATTLE_EQUIP_INIT_3[4] = 0x54
+BATTLE_EQUIP_INIT_3[5] = 0x55
+BATTLE_EQUIP_INIT_3[6] = 0x54
+BATTLE_EQUIP_INIT_3[7] = 0x55
 
 COLOSSEUM_WAGER_ITEM = 0x7E0205
 gLastColosseumWager = -1
@@ -166,19 +222,21 @@ end
 
 function resetCurrentMode()
     gInBattle = false
+	gBattleItemsToSkip_table = {}
+		--print("reset skiplist 3")
     gInCave = false
     gInMenu_Significant = false -- "significant" means: we care when item quantity changes
     gInMenu = false
 end
 
 function isSignificantChange()
-    print("START isSignificantChange()->"..debugGlobals())
+    --print("START isSignificantChange()->"..debugGlobals())
     if gInBattle == true or gInCave == true or gInMenu_Significant == true then
         if gInBattle == true or gInCave == true or gInMenu_Significant == true then
 			return true
 		end
     end
-	print("END isSignificantChange()")
+	--print("END isSignificantChange()")
     return false
 end
 
@@ -186,21 +244,23 @@ end
 function updatePlayerModeContext(segment)
 
     local readVal = segment:ReadUInt8(START_CONTEXT_ADDRESS)
-    print("START updatePlayerModeContext() -> "..readVal)
+    --print("START updatePlayerModeContext() -> "..readVal)
     if readVal ~= CONTEXT_MENU_1 and readVal ~= CONTEXT_CAVE_1 and readVal ~= CONTEXT_BATTLE_1  then --check for shop/player-menu, chest-hunting, or in battle
         gInBattle = false
+		gBattleItemsToSkip_table = {}
+		--print("reset skiplist 4")
 		gInCave = false
 		return
     end
-    --print("		updatePlayerModeContext...1")
+    ----print("		updatePlayerModeContext...1")
     --are we in party-menu/shop?
     if readVal == CONTEXT_MENU_1 then 
         local readVal2 = segment:ReadUInt8(START_CONTEXT_ADDRESS+1)
         if readVal2 == CONTEXT_MENU_2 then 
-            --print("		updatePlayerModeContext...2")
+            ----print("		updatePlayerModeContext...2")
             local readVal3 = segment:ReadUInt8(START_CONTEXT_ADDRESS+2)
             if readVal3 == CONTEXT_MENU_3 then 
-                --print("		updatePlayerModeContext...3")
+                ----print("		updatePlayerModeContext...3")
                 resetCurrentMode()
                 gInMenu = true
 				table.insert(gPrevSubMenuContexts_table, CONTEXT_MENU_3) --push
@@ -208,21 +268,21 @@ function updatePlayerModeContext(segment)
         end
     end
 
-    --are we in battle?
-    if readVal == CONTEXT_BATTLE_1 then 
-        local readVal2 = segment:ReadUInt8(START_CONTEXT_ADDRESS+1)
-        if readVal2 == CONTEXT_BATTLE_2 then 
-            local readVal3 = segment:ReadUInt8(START_CONTEXT_ADDRESS+2)
-            if readVal3 == CONTEXT_BATTLE_3 then 
-                resetCurrentMode()
-                gInBattle = true
-				gInCave = false
+    -- --are we in battle?
+    -- if readVal == CONTEXT_BATTLE_1 then 
+    --     local readVal2 = segment:ReadUInt8(START_CONTEXT_ADDRESS+1)
+    --     if readVal2 == CONTEXT_BATTLE_2 then 
+    --         local readVal3 = segment:ReadUInt8(START_CONTEXT_ADDRESS+2)
+    --         if readVal3 == CONTEXT_BATTLE_3 then 
+    --             resetCurrentMode()
+    --             gInBattle = true
+	-- 			gInCave = false
 
 
-                print("		battle now!")
-            end
-        end
-    end
+    --             --print("		battle now!")
+    --         end
+    --     end
+    -- end
 
     --are we in non-overworld/cave?
     if readVal == CONTEXT_CAVE_1 then 
@@ -233,19 +293,21 @@ function updatePlayerModeContext(segment)
                 resetCurrentMode()
                 gInCave = true
 				gInBattle = false
+				gBattleItemsToSkip_table = {}
+		--print("reset skiplist 5")
             end
         end
     end
      
     --are we in Shop? are we in Item->using item on party? see: function updatePlayerModeMenuSubContext()
-	print("END updatePlayerModeContext() ")
+	--print("END updatePlayerModeContext() ")
 end
 
  
 
 
 function updatePlayerModeMenuSubContext(segment)
-    print("START updatePlayerModeMenuSubContext()")
+    --print("START updatePlayerModeMenuSubContext()")
 	gInMenu_Significant = false
 
     if gInMenu ~= true then
@@ -262,11 +324,11 @@ function updatePlayerModeMenuSubContext(segment)
 		table.remove(gPrevSubMenuContexts_table, 1) --pop
 	end
 	table.insert(gPrevSubMenuContexts_table, readVal) --push
-	print("		 updatePlayerModeMenuSubContext() ----------------->push"..readVal.." <----------------------")
+	--print("		 updatePlayerModeMenuSubContext() ----------------->push"..readVal.." <----------------------")
 
 	 
 
-    print("		current sub context: "..readVal)
+    --print("		current sub context: "..readVal)
 	 
 	
 
@@ -278,21 +340,21 @@ function updatePlayerModeMenuSubContext(segment)
 	end
 
 	if isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE) or isInPrevSubMenuContexts(CONTEXT_MENU_3) then
-		print("		isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE)")
+		--print("		isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE)")
 		gInMenu_Significant = true
 
 		return
 	end
 
 	if isInPrevSubMenuContexts(CONTEXT_MENU_SUB_SHOP_BUY_1) then
-		print("		isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE)")
+		--print("		isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE)")
 		gInMenu_Significant = true
 
 		return
 	end
 
 	if isInPrevSubMenuContexts(CONTEXT_MENU_SUB_SHOP_SELL_1) then
-		print("		isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE)")
+		--print("		isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE)")
 		gInMenu_Significant = true
 
 		return
@@ -302,7 +364,7 @@ function updatePlayerModeMenuSubContext(segment)
  
 
     if readVal == CONTEXT_MENU_SUB_SHOP_BUY_1 or readVal == CONTEXT_MENU_SUB_SHOP_BUY_2 or readVal == CONTEXT_MENU_SUB_SHOP_BUY_3 or readVal == CONTEXT_MENU_SUB_SHOP_SELL_1 or readVal == CONTEXT_MENU_SUB_SHOP_SELL_2 or readVal == CONTEXT_MENU_SUB_SHOP_SELL_3 then
-		print("		top, long, case: SHOP BUY_SELL")
+		--print("		top, long, case: SHOP BUY_SELL")
         gInMenu_Significant = true
 
 		if isShopListLoaded() then
@@ -310,19 +372,19 @@ function updatePlayerModeMenuSubContext(segment)
 		end
  
 	elseif readVal == CONTEXT_MENU_SUB_COLI_1 or readVal == CONTEXT_MENU_SUB_COLI_2 then
-		print("		CONTEXT_MENU_SUB_COLI_1 == 0x72 or CONTEXT_MENU_SUB_COLI_2 == 0x76")
+		--print("		CONTEXT_MENU_SUB_COLI_1 == 0x72 or CONTEXT_MENU_SUB_COLI_2 == 0x76")
 		gInMenu_Significant = true
     elseif readVal == CONTEXT_MENU_SUB_EQUIP_OPTIMUM_CAN_BE_PRESSED or readVal == CONTEXT_MENU_SUB_EQUIP or readVal == CONTEXT_MENU_SUB_EQUIP_REMOVE then
-		print("		readVal == CONTEXT_MENU_SUB_EQUIP_OPTIMUM_CAN_BE_PRESSED or readVal == CONTEXT_MENU_SUB_EQUIP or readVal == CONTEXT_MENU_SUB_EQUIP_REMOVE")
+		--print("		readVal == CONTEXT_MENU_SUB_EQUIP_OPTIMUM_CAN_BE_PRESSED or readVal == CONTEXT_MENU_SUB_EQUIP or readVal == CONTEXT_MENU_SUB_EQUIP_REMOVE")
 		gInMenu_Significant = false
 	elseif readVal == CONTEXT_MENU_SUB_RELIC_EQUIP or readVal == CONTEXT_MENU_SUB_RELIC_REMOVE then
-		print("		readVal == CONTEXT_MENU_SUB_RELIC_EQUIP or readVal == CONTEXT_MENU_SUB_RELIC_REMOVE")
+		--print("		readVal == CONTEXT_MENU_SUB_RELIC_EQUIP or readVal == CONTEXT_MENU_SUB_RELIC_REMOVE")
 		gInMenu_Significant = false
 	else
-		print("		else")
+		--print("		else")
         gInMenu_Significant = false
     end
-	print("END updatePlayerModeMenuSubContext()")
+	--print("END updatePlayerModeMenuSubContext()")
 end
  
 function initCharNameArray()
@@ -391,9 +453,7 @@ function initBattleInventoryQuantities()
     end
 end
 
-function initBattleItemsToSkip_table()
-    gBattleItemsToSkip_table = {}
-end
+ 
 
 function initgCharacterInitialEquipment_2d()
     for i=0,NUM_OF_PLAYER_CHARACTERS-1 do
@@ -410,7 +470,7 @@ function gPrevSubMenuContexts_table()
 end
  
 function grabAllCharacterRecruitmentEquipment(segment)
-	print("START grabAllCharacterRecruitmentEquipment()")
+	--print("START grabAllCharacterRecruitmentEquipment()")
     if gIsInitCharRecruitEquip == true then
         return
     end
@@ -429,7 +489,7 @@ function grabAllCharacterRecruitmentEquipment(segment)
         gCharacterInitialEquipment_2d[i/37][5] = segment:ReadUInt8(START_CHARACTER_EQUIP+i+5) -- relic2
     end
 
-    --print("		grab all complete")
+    ----print("		grab all complete")
     
     gIsInitCharRecruitEquip = true
     
@@ -439,17 +499,17 @@ function grabAllCharacterRecruitmentEquipment(segment)
         end
     end
 
-    print("END grabAllCharacterRecruitmentEquipment()")
+    --print("END grabAllCharacterRecruitmentEquipment()")
 end
 
 
 function updateInventoryItems(segment)
-    print("START updateInventoryItems -> "..debugGlobals())
+    --print("START updateInventoryItems -> "..debugGlobals())
     local readVal = -1
     for i=0, 255 do
         readVal = segment:ReadUInt8(START_INVENTORY_ITEMS+i)
         if gInventoryItems[i] ~= readVal then
-            --print("		updated item slot "..i.." to "..gItemNames[readVal])
+            ----print("		updated item slot "..i.." to "..gItemNames[readVal])
             
             
             if readVal == 0xFF then --"Empty"
@@ -466,27 +526,27 @@ function updateInventoryItems(segment)
             gInventoryItems[i] = readVal
 
              
-            --print(debugGlobals())
-            --print('1 lets do something w/ItemNames!...'..gItemNames[i])
+            ----print(debugGlobals())
+            ----print('1 lets do something w/ItemNames!...'..gItemNames[i])
            
 
 
         end
     end
 	
-	print("END updateInventoryItems -> ")
+	--print("END updateInventoryItems -> ")
 end
 
 function updateInventoryItemQuantities(segment)
-	print("START updateInventoryItemQuantities() - > START")
+	--print("START updateInventoryItemQuantities() - > START")
 
 	if gCurrentArea == 0x07 or gCurrentArea == 0x0C or gCurrentArea == 0xBD then
 		if gInMenu == false  then
-			print("		------------------IGNORING DUDE WHO UNEQUIP EVERYTHING -------------------------------------")
+			--print("		------------------IGNORING DUDE WHO UNEQUIP EVERYTHING -------------------------------------")
 			return
 		end
 	else
-		print("		AREA is OK")
+		--print("		AREA is OK")
 	end
 
 	--gInventoryQuantities is initialized with zeroes (0).
@@ -495,16 +555,16 @@ function updateInventoryItemQuantities(segment)
       
 		qty = segment:ReadUInt8(START_INVENTORY_QUANTITIES+i)
 		if isItemInSkipList(gInventoryItems[i]) == true then
-			print("		updateInventoryItemQuantities() -> isItemInSkipList(gInventoryItems[i]) == true")
+			--print("		updateInventoryItemQuantities() -> isItemInSkipList(gInventoryItems[i]) == true item: "..gInventoryItems[i])
 			gInventoryQuantities[i] = qty
 		elseif gInventoryQuantities[i] ~= qty then
-			print("		updateInventoryItemQuantities() -> gInventoryQuantities[i] ~= qty SOMETHING CHANGED")
+			--print("		updateInventoryItemQuantities() -> gInventoryQuantities[i] ~= qty SOMETHING CHANGED")
 			if isSignificantChange() then
-				--print(debugGlobals())
-				print("		updateInventoryItemQuantities() -> IT'S SIGNIFICANT")
-				print("		gInventoryQuantities[i]: "..gInventoryQuantities[i].." qty: "..qty)
+				----print(debugGlobals())
+				--print("		updateInventoryItemQuantities() -> IT'S SIGNIFICANT")
+				--print("		gInventoryQuantities[i]: "..gInventoryQuantities[i].." qty: "..qty)
 				if qty == 0 then
-					print("		1")
+					--print("		1")
 					if gTemp_DepletedItemID == -1 or gTemp_DepletedItemID == nil then
 						updateTrackerItem(gInventoryItems[i], gInventoryQuantities[i] * -1)
 					else
@@ -517,32 +577,32 @@ function updateInventoryItemQuantities(segment)
 					if gInventoryQuantities[i] == 0 and qty == 0x01 then --old was zero, new is 1.
 						--may have been a chest/pot/Reward
 						--may have been bought
-						print("		2")
+						--print("		2")
 						updateTrackerItem(gInventoryItems[i], 1, i )
 					elseif gInventoryQuantities[i] < qty then -- old qty was less than new qty
 						--may have been a chest/pot/Reward
 						--may have been bought / won
-						print("		3")
+						--print("		3")
 						updateTrackerItem(gInventoryItems[i], qty - gInventoryQuantities[i])
 					elseif gInventoryQuantities[i] > qty then -- old qty was more than new qty
 						--may have been sold
 						--may have been used
 						--may have been thrown/used in battle?
 						--may have been colliseum wagered and spent.
-						print("		4")
+						--print("		4")
 						updateTrackerItem(gInventoryItems[i], (gInventoryQuantities[i] - qty) * -1)
 					end
 				end
 			else
-				print("		updateInventoryItemQuantities() -> IT'S NOT SIGNIFICANT")
-				print("		gInventoryQuantities[i]: "..gInventoryQuantities[i].." qty: "..qty)
+				--print("		updateInventoryItemQuantities() -> IT'S NOT SIGNIFICANT")
+				--print("		gInventoryQuantities[i]: "..gInventoryQuantities[i].." qty: "..qty)
 			end
 			gInventoryQuantities[i] = qty
 		end
 		
          
     end 
-	print("END updateInventoryItemQuantities() - > END")
+	--print("END updateInventoryItemQuantities() - > END")
 end
 
 
@@ -557,388 +617,47 @@ function isInPrevSubMenuContexts(contextid)
     for index, value in ipairs(gPrevSubMenuContexts_table) do
         
         if value == contextid then
-            print("		prevContext: "..value.." *")
+            --print("		prevContext: "..value.." *")
             return true
 		else
-			print("		prevContext: "..value)
+			--print("		prevContext: "..value)
         end
     end
 
-	--print("START	 isItemInSkipList")
+	----print("START	 isItemInSkipList")
     return false
 
 end
 
 function isItemInSkipList(itemid)
-    --print("START	 isItemInSkipList")
+    ----print("START	 isItemInSkipList")
 
     local lengthOfTable = 0
     for _ in pairs(gBattleItemsToSkip_table) do lengthOfTable = lengthOfTable + 1 end
     
     if lengthOfTable == 0 then
-        --print("		skip list is empty!")
+        ----print("		skip list is empty!")
         return false
     end
 
-    --print("		skip list len: "..lengthOfTable)
+    ----print("		skip list len: "..lengthOfTable)
 
     for index, value in ipairs(gBattleItemsToSkip_table) do
-        --print("		scanning skip list....i: "..index.." item: "..gItemNames[value])
+        ----print("		scanning skip list....i: "..index.." item: "..gItemNames[value])
         if value == itemid then
-            --print("		))) found in skip list")
+            ----print("		))) found in skip list")
             return true
         end
     end
 
-	--print("START	 isItemInSkipList")
+	----print("START	 isItemInSkipList")
     return false
 
 end
 
-function updateBattleInventoryEquip(segment)
-	print("START	 updateBattleInventoryEquip() -> "..debugGlobals())
-    if gInBattle == false then
-        print("		updateBattleInventoryEquip() -> [x] gInBattle == false")
-		gBattleEquipItemsNeedsInit = true
-        return
-	else
-		print("		updateBattleInventoryEquip() -> [ ] gInBattle == false")
-    end
-
-	if gBattleNumAliveMonsters <= 0 and gInBattle == true then
-		print("		updateBattleInventoryEquip() -> [x] gBattleNumAliveMonsters <= 0 and gInBattle == true")
-		print("		fight's over, do nothing")
-		return
-	else
-		print("		updateBattleInventoryEquip() -> [ ] gBattleNumAliveMonsters <= 0 and gInBattle == true")
-	end
-
-    if gBattleEquipItemsNeedsInit == true then
-		print("		updateBattleInventoryEquip() -> [x] gBattleEquipItemsNeedsInit == true")
-
-		print("		updateBattleInventoryEquip() -> For Loop Init gBattleEquipItems ")
-        for i=0, 40-1, 5 do
-            print("		gBattleEquipItemsNeedsInit, i/5:"..i/5)
-            gBattleEquipItems[i/5] = segment:ReadUInt8(START_BATTLE_RIGHT_HAND_EQUIPPED+i)
-            --gBattleEquipItemsQuantities[i/5] = segment:ReadUInt8(START_BATTLE_RIGHT_HAND_EQUIPPED+i+3)
-            --print("		*beq_i: "..(i/5).."item: "..gItemNames[gBattleEquipItems[i/5]])
-        end
-        
-        print("		battle equip init done!")
-
-        gBattleEquipItemsNeedsInit = false
-
-        return
-	else
-		print("		updateBattleInventoryEquip() -> [ ] gBattleEquipItemsNeedsInit == true")
-    end
-
-    local itemid = -1
-    --local qty = -1
-
-   
-
-    
-    gTrackBattleEquipChange = -1
-	
-	print("		updateBattleInventoryEquip() -> For Loop Detect Changes")
-    for i=0, (40-1), 5 do
-		--print("		i*: "..(i/5))
-        itemid = segment:ReadUInt8(START_BATTLE_RIGHT_HAND_EQUIPPED+i)
-        --qty = segment:ReadUInt8(START_BATTLE_RIGHT_HAND_EQUIPPED+i+3)
-        
-		if itemid == gBattleEquipItems[i/5] then
-			--do nothing
-			if itemid == 0xFF then
-				--empty stays empty
-			else
-				--same item
-			end
-		else
-
-			if itemid ~= gBattleEquipItems[i/5] and itemid ~= 0xFF then
-				--new item in slot --was a swap
-				print("		YOU EQUIPPED: "..gItemNames[itemid])
-			elseif itemid == 0xFF then 
-				--possible unequip occurred track It.
-				print("		possible unequip occurred")
-				table.insert(gBattleItemsToSkip_table, gBattleEquipItems[i/5])
-
-				gTrackBattleEquipChange = gBattleEquipItems[i/5]
-				
-				--print("		THIS HAPPENS HERE. storing gTrackBattleEquipChange: "..gItemNames[gTrackBattleEquipChange])
-			end
- 
-		end
-
-        gBattleEquipItems[i/5] = itemid
-        --gBattleEquipItemsQuantities[i/5] = qty
-    end
-	
-	print("END updateInventoryItemQuantities() - > END")
-end
-
-
-function updateBattleInventory(segment)
-	print("START	 updateBattleInventory() -> [x] ")
-    local r1 = segment:ReadUInt8(START_BATTLE_INVENTORY)
-	local r2 = segment:ReadUInt8(START_BATTLE_INVENTORY+1)
-
-	-- 1f 00
-	--ff ff
-	--54 55
-	--
-
-    -- print("		updBattleInv() -> "..debugGlobals())
-	
-    --if gInBattle == false then
-	if r1 == 0x1F and r2 == 0x00 then
-        print("		updateBattleInventory() -> [x] r1 == 0x1F and r2 == 0x00")
-		gBattleInventoryNeedsInit = true
-		print("		updateBattleInventory() -> [x] SET gBattleInventoryNeedsInit = true1")
-        return
-	else
-		print("		updateBattleInventory() -> [ ] r1 == 0x1F and r2 == 0x00")
-    end
-
-	if r1 == 0xFF and r2 == 0xFF then
-		print("		updateBattleInventory() -> [x] r1 == 0xFF and r2 == 0xFF")
-        gBattleInventoryNeedsInit = true
-		print("		updateBattleInventory() -> [x] SET gBattleInventoryNeedsInit = true2")
-        return
-	else
-		print("		updateBattleInventory() -> [ ] r1 == 0xFF and r2 == 0xFF")
-    end
-
-	if r1 == 0x54 and r2 == 0x55 then
-		print("		updateBattleInventory() -> [x] r1 == 0x54 and r2 == 0x55")
-        gBattleInventoryNeedsInit = true
-		print("		updateBattleInventory() -> [x] SET gBattleInventoryNeedsInit = true3")
-        return
-	else
-		print("		updateBattleInventory() -> [ ] r1 == 0x54 and r2 == 0x55")
-    end
-
-	 print("		r1 -> "..string.format("%x", r1))
-	 print("		r2 -> "..string.format("%x", r2))
-
-	if gBattleNumAliveMonsters <= 0 then
-		print("		updateBattleInventory() -> [x] gBattleNumAliveMonsters <= 0")
-
-		if gInBattle == true then
-			print("		[x] gInBattle == true")
-
-			if gBattleInventoryNeedsInit == false then
-				print("		[x] gBattleInventoryNeedsInit == false")
-				print("		fight's over, do nothing")
-				return
-			else
-				print("		[ ] gBattleInventoryNeedsInit == false")
-			end
-		else
-			print("		[ ] gInBattle == true")
-		end
-	else
-		print("		updateBattleInventory() -> [ ] gBattleNumAliveMonsters <= 0")
-	end
-
-	gInBattle = true --force this here.
-	 
-    if gBattleInventoryNeedsInit == true then
-		print("		updateBattleInventory() -> [x] gBattleInventoryNeedsInit == true")
-
-        initBattleItemsToSkip_table()
-
-		print("		updateBattleInventory() -> [x] for loop init battle inv items")
-        for i=0, 5*(255-1), 5 do
-            
-            gBattleInventoryItems[i/5] = segment:ReadUInt8(START_BATTLE_INVENTORY+i)
-            gBattleInventoryQuantities[i/5] = segment:ReadUInt8(START_BATTLE_INVENTORY+i+3)
-            --print("		*bi: "..(i/5))
-        end
-        
-        print("		battle inv init done!")
- 
-        gBattleInventoryNeedsInit = false
-		print("		updateBattleInventory() -> [x] SET gBattleInventoryNeedsInit = false")
-        return
-	else
-		print("		updateBattleInventory() -> [ ] gBattleInventoryNeedsInit == true")
-    end
-
-    local itemid = -1
-    local qty = -1
-
-   
-
-    local TrackPrevItem = -3 --must be init to diff. value than TrackS!
-    local TrackS = -1
-	
-	print("		updateBattleInventory() -> [x] for look detect inv changes")
-    for i=0, 5*(255-1), 5 do
-
-	
-
-
-        --print("		i*: "..(i/5))
-        itemid = segment:ReadUInt8(START_BATTLE_INVENTORY+i)
-        qty = segment:ReadUInt8(START_BATTLE_INVENTORY+i+3)
-        
-		if itemid == gBattleInventoryItems[i/5] and qty == gBattleInventoryQuantities[i/5] then --I=PrevI		Q=PrevQ
-			--print("		updateBattleInventory() -> [x] itemid == gBattleInventoryItems[i/5] and qty == gBattleInventoryQuantities[i/5]")
-			--do nothing
-			if itemid == 0xFF and qty == 0 then
-				--print("		emptyyyyyyyyyy") --do nothing
-			else
-				--print("		same item!: "..gItemNames[itemid])
-			end
-		else
-			print("		updateBattleInventory() -> [x] itemid == gBattleInventoryItems[i/5] and qty == gBattleInventoryQuantities[i/5]")
-			if itemid ~= gBattleInventoryItems[i/5] and itemid ~= 0xFF and qty ~= 0 then --I=S(omething)	Q=PrevQ // --I=S(omething)	Q=#(non-PrevQ)
-			print("		updateBattleInventory() -> [x] itemid ~= gBattleInventoryItems[i/5] and itemid ~= 0xFF and qty ~= 0")
-				if TrackS == -1 then
-					TrackS = itemid
-					--print("		Tracking: "..gItemNames[TrackS].."as TrackS") --could be unequip to empty.
-				else
-					--do nothing --item-swap occurred
-					--print("		possible swap. see: "..gItemNames[itemid])
-				end
-			elseif itemid == gBattleInventoryItems[i/5] and qty ~= gBattleInventoryQuantities[i/5] then --I=PrevI		Q=#(non-PrevQ) // --I=PrevI		Q=#(non-PrevQ)
-				print("		updateBattleInventory() -> [x] itemid == gBattleInventoryItems[i/5] and qty ~= gBattleInventoryQuantities[i/5]")
-				table.insert(gBattleItemsToSkip_table, itemid)
-
-				if qty > gBattleInventoryQuantities[i/5] then
-					print("		5")
-					updateTrackerItem(itemid, 1, i )
-					print("		using +1: "..gItemNames[itemid])
-
-				elseif qty < gBattleInventoryQuantities[i/5] then
-					print("		6")
-					updateTrackerItem(itemid, -1, i )
-					print("		using -1: "..gItemNames[itemid])
-				end
-			elseif itemid == 0xFF and qty == 0 then 
-				print("		updateBattleInventory() -> [x] itemid == 0xFF and qty == 0")
-				TrackPrevItem = gBattleInventoryItems[i/5]
-				--print("		Tracking: "..gItemNames[gBattleInventoryItems[i/5]].."as TrackPrevItem")
-			else
-				print("		updateBattleInventory() -> [ ] for loop else AAAaddsadfg")
-			end
-
-			--forward scan for empty-swap
-			if TrackPrevItem == itemid then --the blanked item was found in forward-scan!
-				print("		updateBattleInventory() -> [x] TrackPrevItem == itemid")
-				--do nothing; --item-swap occurred
-			else
-				print("		updateBattleInventory() -> [ ] TrackPrevItem == itemid")
-			end
-		end
-
-        gBattleInventoryItems[i/5] = itemid
-        gBattleInventoryQuantities[i/5] = qty
-    end
-
-	--trackS check for empty-swap or depletion
-	if TrackPrevItem == TrackS then --down to up swap. empty was top. S was bottom.
-		print("		TrackPrevItem == TrackS")
-		--do nothing
-		print("		Doing nothing. down to up swap. empty was top. S was bottom.")
-
-	elseif TrackPrevItem >= 0 and TrackS == -1 then
-		print("		TrackPrevItem >= 0 and TrackS == -1")
-		table.insert(gBattleItemsToSkip_table, TrackPrevItem)
-		print("		using -1 **deplete**: "..gItemNames[TrackPrevItem])
-		print("		7")
-		updateTrackerItem(TrackPrevItem, -1) --deplete occurred
-	else
-		print("		updateBattleInventory() -> [ ] TrackPrevItem == TrackS ELSE")
-	end
---[[
-	-- I's 		can be Empty 	or PrevI	or S(omething) new
-	-- Q's 		can be 0 		or PrevQ	or #
- 
-	--I=E			Q=0
-	--*I=E			Q=PrevQ
-	--*I=E			Q=#
-
-	--*I=PrevI		Q=0
-	--I=PrevI		Q=PrevQ
-	--I=PrevI		Q=#
-
-	--*I=S(omething)	Q=0
-	--I=S(omething)	Q=PrevQ
-	--I=S(omething)	Q=#
-	---
-	--- *'s are invalid cases^
-	
-	--take non-*'s from above^:
-	--I=E			Q=0		-- empty-swap or deplete-use ???
-	--I=PrevI		Q=PrevQ	-- continue Loop +++
-	--I=PrevI		Q=#		-- battle-use or battle-reward ???
-	--I=S(omething)	Q=PrevQ	-- swap +++
-	--I=S(omething)	Q=#		-- swap +++
-
-	--take two(2) from above^: non-swaps, non continue loop
-	--1.I=E			Q=0		-- empty-swap or deplete-use
-		-- track-previous-I, track-previous-Q (handled below)
-	
-	--2.I=PrevI		Q=#		-- battle-use or battle-reward
-		-- if # is less than prevQ then battle-use +++
-		-- if # is greater than prevQ then battle-reward +++
-
-	--1. above: (I=E,Q=0[empty-swap or deplete-use])->track-previous-I, track-previous-Q
-		-- when is it empty-swap?
-			--it is empty-swap when prevI shows up in battle-item-scan after I=E,Q=0 occurs. Add a check +++++
-				--but what if occurence is swapped? prefer not to backward-scan...
-					--then, would have detected I=S Q=# first, which is flagged as a swap already. So, it's handled.
-		-- when is it deplete-use?
-			--it is deplete use when I=E,Q=0 and when prevI never shows up in remaining battle-scan, and also when prevI doesn't show up as 
-			--a previous I=S(omething) Q=*. Therefore, track S when I=S,Q=* occurs. 
-			--Therefore the full check is: when I=E,Q=0 if prevI isn't in the forward-battle-scan **AND** prevI isn't in the  Back-tracklist 
-				--Then a deplete-use occurred +++
-
-	--count up the +++ cases:
-	--
-	--I=PrevI		Q=PrevQ				-- continue Loop +++
-	--I=S(omething)	Q=PrevQ				-- swap +++ (Track S)
-	--I=S(omething)	Q=#(non-PrevQ)		-- swap +++ (Track S)
-	--I=PrevI		Q=#(non-PrevQ) 		if # is less than prevQ then battle-use +++
-	--I=PrevI		Q=#(non-PrevQ)	 	if # is greater than prevQ then battle-reward +++
-	--I=E,Q=0 							--it is empty-swap when prevI shows up in battle-item-scan after I=E,Q=0 (this) occurs. 
-										--IOW: Track PrevI. Compare Tracked-PrevI versus the rest of the list of battle items. If found then empty swap.
-	--I=E,Q=0 							--When Tracked-PrevI isn't found in rest-of-list, check Tracked-PrevI versus Tracked-S list. 
-										--If found then empty swap. else: deplete occurred.
-]]--
-     
-
-	if gBattleEquipItemsNeedsInit == true then
-		print("		updateBattleInventory() -> [x] gBattleEquipItemsNeedsInit == true")
-		updateBattleInventoryEquip()
-	end
-
-	print("END	 updateBattleInventory() -> [x] ")
-end
-
---TODO:
---IGNORE battle move items      [x]
---IGNORE battle item-changes post-battle [x]
---IGNORE equip change in battle [x]
---battle rewards (new item)     [x] 
---battle rewards (new item) TURBO 'A' [x] 
---battle rewards (existing)     [ ]
---battle use item               [x]
---battle use item after swap up with empty               [x]
---battle use item after swap down with empty             [x]
---battle use item after swap up with other item          [x]
---battle use item after swap down with other item        [x]
---battle use same item multiple [x]
---battle use item to depletion  [x]
---steal from battle [ ]
-
-
 
 function trackNewlyRecruitedCharacterEquipment(characterIndex)
-	print("START	 trackNewlyRecruitedCharacterEquipment() -> [x] ")
+	--print("START	 trackNewlyRecruitedCharacterEquipment() -> [x] ")
     if gIsInitCharRecruitEquip == false then
         return
     end
@@ -948,7 +667,7 @@ function trackNewlyRecruitedCharacterEquipment(characterIndex)
         if gCharacterInitialEquipment_2d[characterIndex][i] == 0xFF then
 
         else
-			print("		8")
+			--print("		8")
 			updateTrackerItem(gCharacterInitialEquipment_2d[characterIndex][i], 1)
         end
 
@@ -956,7 +675,7 @@ function trackNewlyRecruitedCharacterEquipment(characterIndex)
          
          
     end
-	print("END	 trackNewlyRecruitedCharacterEquipment() -> [x] ")
+	--print("END	 trackNewlyRecruitedCharacterEquipment() -> [x] ")
 end
 
 
@@ -1195,7 +914,7 @@ function initItemArray()
   gItemNames[227] = "Sniper Sight"
   gItemNames[228] = "Exp. Egg"
   gItemNames[229] = "Tintinabar"
-  gItemNames[230] = "Sprint Shoes"
+  gItemNames[230] = "S--print Shoes"
   gItemNames[231] = "Rename Card"
   gItemNames[232] = "Tonic"
   gItemNames[233] = "Potion"
@@ -1226,13 +945,13 @@ end
 
 
 --
--- Print a debug message if debug logging is enabled
--- Debug messages will be printed to the developer console.
+-- --print a debug message if debug logging is enabled
+-- Debug messages will be --printed to the developer console.
 --
 function printDebug(message)
 
   if AUTOTRACKER_ENABLE_DEBUG_LOGGING then
-    print(message)
+    --print(message)
   end
 
 end
@@ -1290,7 +1009,7 @@ function checkBitSet(name, segment, address, flag)
     local value = segment:ReadUInt8(address)
     trackerItem.Active = ((value & flag) ~= 0)
   else
-    printDebug("checkBitSet: Unable to find tracker item: " .. name)  
+    --printDebug("checkBitSet: Unable to find tracker item: " .. name)  
   end
   
 end
@@ -1311,7 +1030,7 @@ function checkBitCleared(name, segment, address, flag)
     local value = segment:ReadUInt8(address)
     trackerItem.Active = ((value & flag) == 0)
   else
-    printDebug("checkBitCleared: Unable to find tracker item: " .. name)  
+    --printDebug("checkBitCleared: Unable to find tracker item: " .. name)  
   end
   
 end
@@ -1328,7 +1047,7 @@ function unsetTrackerItem(name)
   if trackerItem then
     trackerItem.Active = false
   else
-    printDebug("unsetTrackerItem: Unable to find tracker item: " .. name)  
+    --printDebug("unsetTrackerItem: Unable to find tracker item: " .. name)  
   end
 
 end
@@ -1363,7 +1082,7 @@ end
 --   name - Name of the character's tracker object
 --
 function toggleCharacter(byteValue, flag, name)
-	print("START toggleCharacter() -> START ")
+	--print("START toggleCharacter() -> START ")
   local active = false
   character = Tracker:FindObjectForCode(name)
   if character then
@@ -1376,7 +1095,7 @@ function toggleCharacter(byteValue, flag, name)
             if string.upper(name) == gCharacterNames[i] then
                 if gCharactersActiveStatus[i] == false then
                     gCharactersActiveStatus[i] = true
-                    print("		newly added char: "..string.upper(name))
+                    --print("		newly added char: "..string.upper(name))
                     if gIsInitCharRecruitEquip == true then
                         trackNewlyRecruitedCharacterEquipment(i) --can get out of sync at ROM start. search this comment for other section.
                     end
@@ -1390,9 +1109,9 @@ function toggleCharacter(byteValue, flag, name)
     end
 
   else
-    printDebug("Unable to find character: " .. name)
+    --printDebug("Unable to find character: " .. name)
   end
-	print("END toggleCharacter()")
+	--print("END toggleCharacter()")
 end
 
 --
@@ -1402,7 +1121,7 @@ end
 --   segment - Memory segment to read from
 --
 function updateParty(segment)
-    print("START updateParty")
+    --print("START updateParty")
   local charsByte1 = segment:ReadUInt8(0x7E1EDE)
   -- Top 2 bits of the second character byte aren't used.
   local charsByte2 = segment:ReadUInt8(0x7E1EDF) & 0x3F
@@ -1433,7 +1152,7 @@ function updateParty(segment)
   local characters = Tracker:FindObjectForCode("Char")
   characters.CurrentStage = (charactersAcquired - 1)
 
-	print("END updateParty")
+	--print("END updateParty")
 end
 
 --
@@ -1443,7 +1162,7 @@ end
 --   segment - Memory segment to read from
 --
 function updateEspers(segment)
-	print("START updateEspers() -> START ")
+	--print("START updateEspers() -> START ")
   local espersAcquired = 0
   for i = 0, 3 do
     local byteValue = segment:ReadUInt8(0x7E1A69 + i)
@@ -1465,7 +1184,7 @@ function updateEspers(segment)
   --
   local espers = Tracker:FindObjectForCode("Esper")
   espers.CurrentStage = math.min(espersAcquired, 24)
-	print("END updateEspers() -> END ")
+	--print("END updateEspers() -> END ")
 end
 
 --
@@ -1821,10 +1540,10 @@ function updateSpecial(segment)
 end
  
 function updateTrackerItem(itemid_input, qty)
-	print("START updateTrackerItem()... itemid_input: "..itemid_input.." qty: "..qty)
+	--print("START updateTrackerItem()... itemid_input: "..itemid_input.." qty: "..qty)
 	local itemid
 	if itemid_input == 0xFF then
-		print("		item name change hasn't happened yet.... WAITING FOR IT!")
+		--print("		item name change hasn't happened yet.... WAITING FOR IT!")
 		gReTriggerWhenItemIsFound_ShouldWe = true;
 		gReTriggerWhenItemIsFound_Qty = qty;
 		
@@ -1835,45 +1554,45 @@ function updateTrackerItem(itemid_input, qty)
 
 
 	activateItemLabel(gItemNames[itemid])
-	print("		updateTrackerItem() gInMenu_SubType == "..gInMenu_SubType.."...gInMenu_Significant: "..tostring(gInMenu_Significant).."....item: "..gItemNames[itemid].." qty: "..qty)
-	--print("		qty"..qty)
+	--print("		updateTrackerItem() gInMenu_SubType == "..gInMenu_SubType.."...gInMenu_Significant: "..tostring(gInMenu_Significant).."....item: "..gItemNames[itemid].." qty: "..qty)
+	----print("		qty"..qty)
 
 	
 	if gInMenu == true and (gInMenu_SubType >= CONTEXT_MENU_SUB_SHOP_BUY_1 and gInMenu_SubType <= CONTEXT_MENU_SUB_SHOP_BUY_3) and qty > 0 then --buy
-		print("		d")
+		--print("		d")
 		incrementItem("buy", itemid, qty)
 	elseif gInMenu == true and (gInMenu_SubType >= CONTEXT_MENU_SUB_SHOP_SELL_1 and gInMenu_SubType <= CONTEXT_MENU_SUB_SHOP_SELL_3) and qty < 0  then --sell
-		print("		e")
+		--print("		e")
 		incrementItem("sell", itemid, qty)
 	elseif gInMenu == true and gInMenu_Significant == true and qty < 0 then --menu use
-		print("		AA")
+		--print("		AA")
 		incrementItem("use", itemid, qty)
 	elseif gInCave == true then 
-		print("		f")
+		--print("		f")
 		if gLastColosseumFightIsAGo == true then
-			print("		gLastColosseumFightIsAGo")
+			--print("		gLastColosseumFightIsAGo")
 			gLastColosseumFightIsAGo = false
 			incrementItem("use", itemid, qty)
 		else
 			incrementItem("chest", itemid, qty) 
 		end
 	elseif gInBattle == true and qty > 0 then 
-		print("		g")
+		--print("		g")
 		incrementItem("chest", itemid, qty) --battle reward/steal
 	elseif gInBattle == true and qty < 0 then 
-		print("		h")
+		--print("		h")
 		incrementItem("use", itemid, qty) --battle used
 	elseif gInMenu == true and gInMenu_Significant == true then 
-		print("		i")
+		--print("		i")
 		incrementItem("chest", itemid, qty)
 	end
 	
-	print("END updateTrackerItem()")
+	--print("END updateTrackerItem()")
 end
 
 function incrementItem(stringType, itemid, qty)
-	print("START incrementItem()")
-	print("		UI update -> Looking up: "..stringType.."_"..gItemNames[itemid])
+	--print("START incrementItem()")
+	--print("		UI update -> Looking up: "..stringType.."_"..gItemNames[itemid])
 	local mainLabel = Tracker:FindObjectForCode(stringType.."_"..gItemNames[itemid])
 	if mainLabel.Active == false then
 		mainLabel.Active = true
@@ -1890,15 +1609,15 @@ function incrementItem(stringType, itemid, qty)
 	end
 	
 	calcAndSetQty(tens_label,ones_label, qty)
-	print("END incrementItem()")
+	--print("END incrementItem()")
 end
 
 function calcAndSetQty(tens_label, ones_label, qty)
 	--currentStage 0 is transparent image (aka blank)
 	--currentStage 1 is "0", 2 is "1", etc...
 
-	print("START	 calcAndSetQty() -> tens_label.CurrentStage: "..tens_label.CurrentStage)
-	print("		calcAndSetQty() -> ones_label.CurrentStage: "..ones_label.CurrentStage)
+	--print("START	 calcAndSetQty() -> tens_label.CurrentStage: "..tens_label.CurrentStage)
+	--print("		calcAndSetQty() -> ones_label.CurrentStage: "..ones_label.CurrentStage)
 
 
 	local tensDigit
@@ -1917,29 +1636,29 @@ function calcAndSetQty(tens_label, ones_label, qty)
 
 
 	local newQty = (10*tensDigit) + onesDigit + math.abs(qty)
-	print("		calcAndSetQty() -> newQty: "..newQty)
+	--print("		calcAndSetQty() -> newQty: "..newQty)
 
 	local newTensDigit = math.floor(newQty/ 10) % 10
 	local newOnesDigit = newQty % 10 
-	print("		calcAndSetQty() -> newTensDigit: "..newTensDigit)
-	print("		calcAndSetQty() -> newOnesDigit: "..newOnesDigit)
+	--print("		calcAndSetQty() -> newTensDigit: "..newTensDigit)
+	--print("		calcAndSetQty() -> newOnesDigit: "..newOnesDigit)
 	tens_label.CurrentStage = newTensDigit + 1
 	ones_label.CurrentStage = newOnesDigit + 1
-	print("		calcAndSetQty() -> tens_label.CurrentStage: "..(newTensDigit + 1))
-	print("END calcAndSetQty() -> ones_label.CurrentStage: "..(newOnesDigit + 1))
+	--print("		calcAndSetQty() -> tens_label.CurrentStage: "..(newTensDigit + 1))
+	--print("END calcAndSetQty() -> ones_label.CurrentStage: "..(newOnesDigit + 1))
 end
 
 function activateItemLabel(itemname)
-	print("START activateItemLabel("..itemname..")")
+	--print("START activateItemLabel("..itemname..")")
 	local item = Tracker:FindObjectForCode(itemname)
 	if item.Active == false then
 		item.Active = true
 	end
-	print("END activateItemLabel("..itemname..")")
+	--print("END activateItemLabel("..itemname..")")
 end
 
 function updateColosseumWager(segment)
-	print("START updateColosseumWager() ")
+	--print("START updateColosseumWager() ")
 	--default state of colosseum memory:
 	--address COLOSSEUM_WAGER_ITEM is 	0x00 at ROM start
 	--									0xFF during Select an Item
@@ -1967,24 +1686,24 @@ function updateColosseumWager(segment)
 		gLastColosseumFightIsAGo = true
 	end
 
-	print("END updateColosseumWager() ")
+	--print("END updateColosseumWager() ")
 
 end
 
 function updateCurrentShop(segment)
-	print("START updateCurrentShop() ")
+	--print("START updateCurrentShop() ")
 	local readVal = segment:ReadUInt8(CURRENT_SHOP)
 	if readVal > 0x55 or readVal <= 0x03 then
 		return
 	end
 	gCurrentShop = readVal
-	print("		UPDATE CURRENT_SHOP: "..readVal)
-	--print("		Current Shop Updated! $$$$$$$$$$$$$")
-	print("END updateCurrentShop() ")
+	--print("		UPDATE CURRENT_SHOP: "..readVal)
+	----print("		Current Shop Updated! $$$$$$$$$$$$$")
+	--print("END updateCurrentShop() ")
 end
 
 function updateShopItemList(segment)
-	print("START Updating Shop List...")
+	--print("START Updating Shop List...")
 
 	if isShopListLoaded() == false then
 		if gCurrentShop ~= gPrevShop then
@@ -1992,299 +1711,299 @@ function updateShopItemList(segment)
 
 			gPrevShop = gCurrentShop
 
-			print("		Updating Shop List...Complete.")
+			--print("		Updating Shop List...Complete.")
 		else
-			print("		...nevermind! b")
+			--print("		...nevermind! b")
 		end
 	else
-		print("		...nevermind! a")
+		--print("		...nevermind! a")
 	end
-	print("END Updating Shop List...")
+	--print("END Updating Shop List...")
 end
 
 
 function updateSeenItemForShop(itemid, shopid)
-	print("START updateSeenItemForShop()")
+	--print("START updateSeenItemForShop()")
 	if shopid == 0x00 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 0)
 	elseif shopid == 0x01 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 1)
 	elseif shopid == 0x02 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 2)
 	elseif shopid == 0x03 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 3)
 	elseif shopid == 0x04 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 4)
 	elseif shopid == 0x05 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 5)
 	elseif shopid == 0x06 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 6)
 	elseif shopid == 0x07 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 7)
 	elseif shopid == 0x08 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 8)
 	elseif shopid == 0x09 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 9)
 	elseif shopid == 0x10 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 10)
 	elseif shopid == 0x11 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 11)
 	elseif shopid == 0x12 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 12)
 	elseif shopid == 0x13 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 13)
 	elseif shopid == 0x14 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 14)
 	elseif shopid == 0x15 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 15)
 	elseif shopid == 0x16 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 16)
 	elseif shopid == 0x17 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 17)
 	elseif shopid == 0x18 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 18)
 	elseif shopid == 0x19 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 19)
 	elseif shopid == 0x20 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 20)
 	elseif shopid == 0x21 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 21)
 	elseif shopid == 0x22 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 22)
 	elseif shopid == 0x23 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 23)
 	elseif shopid == 0x24 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 24)
 	elseif shopid == 0x25 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 25)
 	elseif shopid == 0x26 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 26)
 	elseif shopid == 0x27 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 27)
 	elseif shopid == 0x28 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 28)
 	elseif shopid == 0x29 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 29)
 	elseif shopid == 0x30 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 30)
 	elseif shopid == 0x31 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 31)
 	elseif shopid == 0x32 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 32)
 	elseif shopid == 0x33 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 33)
 	elseif shopid == 0x34 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 34)
 	elseif shopid == 0x35 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 35)
 	elseif shopid == 0x36 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 36)
 	elseif shopid == 0x37 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 37)
 	elseif shopid == 0x38 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 38)
 	elseif shopid == 0x39 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 39)
 	elseif shopid == 0x40 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 40)
 	elseif shopid == 0x41 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 41)
 	elseif shopid == 0x42 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 42)
 	elseif shopid == 0x43 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 43)
 	elseif shopid == 0x44 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 44)
 	elseif shopid == 0x45 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 45)
 	elseif shopid == 0x46 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 46)
 	elseif shopid == 0x47 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 47)
 	elseif shopid == 0x48 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 48)
 	elseif shopid == 0x49 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 49)
 	elseif shopid == 0x50 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 50)
 	elseif shopid == 0x51 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 51)
 	elseif shopid == 0x52 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 52)
 	elseif shopid == 0x53 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 53)
 	elseif shopid == 0x54 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 54)
 	elseif shopid == 0x55 then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 55)
 	elseif shopid == 0x0A then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 56)
 	elseif shopid == 0x0B then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 57)
 	elseif shopid == 0x0C then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 58)
 	elseif shopid == 0x0D then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 59)
 	elseif shopid == 0x0E then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 60)
 	elseif shopid == 0x0F then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 61)
 	elseif shopid == 0x1A then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 62)
 	elseif shopid == 0x1B then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 63)
 	elseif shopid == 0x1C then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 64)
 	elseif shopid == 0x1D then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 65)
 	elseif shopid == 0x1E then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 66)
 	elseif shopid == 0x1F then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 67)
 	elseif shopid == 0x2A then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 68)
 	elseif shopid == 0x2B then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 69)
 	elseif shopid == 0x2C then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 70)
 	elseif shopid == 0x2D then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 71)
 	elseif shopid == 0x2E then
-		--print("		caca")
-		print("		shopid: "..shopid)
+		----print("		caca")
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 72)
 	elseif shopid == 0x2F then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 73)
 	elseif shopid == 0x3A then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 74)
 	elseif shopid == 0x3B then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 75)
 	elseif shopid == 0x3C then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 76)
 	elseif shopid == 0x3D then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 77)
 	elseif shopid == 0x3E then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 78)
 	elseif shopid == 0x3F then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 79)
 	elseif shopid == 0x4A then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 80)
 	elseif shopid == 0x4B then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 81)
 	elseif shopid == 0x4C then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 82)
 	elseif shopid == 0x4D then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 83)
 	elseif shopid == 0x4E then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 84)
 	elseif shopid == 0x4F then
-		print("		shopid: "..shopid)
+		--print("		shopid: "..shopid)
 		setShopLabelForItem(itemid, 85)
 	end
 
-	print("END updateSeenItemForShop()")
+	--print("END updateSeenItemForShop()")
 end
 
 function setShopLabelForItem(itemid, idx)
-	print("START setShopLabelForItem()")
-	--print("		updating seen shop for: "..gItemNames[itemid].."idx: "..idx)
+	--print("START setShopLabelForItem()")
+	----print("		updating seen shop for: "..gItemNames[itemid].."idx: "..idx)
 	activateItemLabel(gItemNames[itemid])
 	activateItemLabel("Eye_"..gItemNames[itemid])
 
 	local shopLabel = Tracker:FindObjectForCode("Shop1_"..gItemNames[itemid])
-	--print("		before shopLabel.CurrentStage: "..shopLabel.CurrentStage)
+	----print("		before shopLabel.CurrentStage: "..shopLabel.CurrentStage)
 	shopLabel.CurrentStage = idx + 1
-	print("END setShopLabelForItem()")
+	--print("END setShopLabelForItem()")
 end
 
  
 
 function loadShopList(segment)
-	print("START loadShopList()")
+	--print("START loadShopList()")
 	if gCurrentShop <= 0x03 then
 		return
 	end
@@ -2294,58 +2013,427 @@ function loadShopList(segment)
 	for i=0, 7 do
 		itemid = segment:ReadUInt8(CURRENT_SHOP_INVENTORY_START+i)
 		if itemid ~= 0xFF then
-			--print("		We're in a shop! $$$$$$"..gItemNames[itemid])
+			----print("		We're in a shop! $$$$$$"..gItemNames[itemid])
 			updateSeenItemForShop(itemid, gCurrentShop)
 		end
 	end
 	table.insert(gShopList_table, gCurrentShop)
-	print("END loadShopList()")
+	--print("END loadShopList()")
 end
 
 function isShopListLoaded(shopid)
-	print("START isShopListLoaded()")
+	--print("START isShopListLoaded()")
     local lengthOfTable = 0
     for _ in pairs(gShopList_table) do lengthOfTable = lengthOfTable + 1 end
     
     if lengthOfTable == 0 then
-        --print("		skip list is empty!")
-		print("END isShopListLoaded() false 0 len")
+        ----print("		skip list is empty!")
+		--print("END isShopListLoaded() false 0 len")
         return false
     end
 
-    --print("		skip list len: "..lengthOfTable)
+    ----print("		skip list len: "..lengthOfTable)
 
     for index, value in ipairs(gShopList_table) do
-        --print("		scanning skip list....i: "..index.." item: "..gItemNames[value])
+        ----print("		scanning skip list....i: "..index.." item: "..gItemNames[value])
         if value == shopid then
-            --print("		))) found in skip list")
-			print("END isShopListLoaded() true")
+            ----print("		))) found in skip list")
+			--print("END isShopListLoaded() true")
             return true
         end
     end
 
-	print("END isShopListLoaded() false ENDOFFUNC")
+	--print("END isShopListLoaded() false ENDOFFUNC")
     return false
 
 end
 
 function updateBattleNumAliveMonsters(segment)
-	print("START updateBattleNumAliveMonsters()")
+	--print("START updateBattleNumAliveMonsters()")
 	gBattleNumAliveMonsters = segment:ReadUInt8(BATTLE_NUM_ALIVE_MONSTERS) 
-	print("END updateBattleNumAliveMonsters() -> gBattleNumAliveMonsters: ",gBattleNumAliveMonsters)
+	--print("END updateBattleNumAliveMonsters() -> gBattleNumAliveMonsters: ",gBattleNumAliveMonsters)
 end
 
 function updateCurrentArea(segment)
 	gPrevSubMenuContexts_table = {} --clear it out
-	print("START updateCurrentArea()")
+	--print("START updateCurrentArea()")
 	gCurrentArea = segment:ReadUInt8(CURRENT_AREA)
-	print("END updateCurrentArea() -> gCurrentArea: 0x"..string.format("%x",gCurrentArea))
+	--print("END updateCurrentArea() -> gCurrentArea: 0x"..string.format("%x",gCurrentArea))
+end
+ 
+function isBattleInventoryValid(segment)
+	print("START	 isBattleInventoryValid()")
+
+	local r1 = segment:ReadUInt8(START_BATTLE_INVENTORY)
+	local r2 = segment:ReadUInt8(START_BATTLE_INVENTORY+5)
+	local r3 = segment:ReadUInt8(START_BATTLE_INVENTORY+10)
+	local r4 = segment:ReadUInt8(START_BATTLE_INVENTORY+15)
+
+	local r1q = segment:ReadUInt8(START_BATTLE_INVENTORY+3)
+	local r2q = segment:ReadUInt8(START_BATTLE_INVENTORY+5+3)
+	local r3q = segment:ReadUInt8(START_BATTLE_INVENTORY+10+3)
+	local r4q = segment:ReadUInt8(START_BATTLE_INVENTORY+15+3)
+
+	
+ 
+	if r1 == BATTLE_INVENTORY_INIT_1[0] and r2 == BATTLE_INVENTORY_INIT_1[1] and r3 == BATTLE_INVENTORY_INIT_1[2] and r4 == BATTLE_INVENTORY_INIT_1[3] then
+		return false
+	elseif r1 == BATTLE_INVENTORY_INIT_2[0] and r2 == BATTLE_INVENTORY_INIT_2[1] and r3 == BATTLE_INVENTORY_INIT_2[2] and r4 == BATTLE_INVENTORY_INIT_2[3] then
+		return false
+	end
+
+	print("r1: 0x"..string.format("%x",r1).."		r2: "..string.format("%x",r2).."		r3: "..string.format("%x",r3).."		r4: "..string.format("%x",r4))
+	
+	gPrevBattleInventoryQuantities[0] = gBattleInventoryQuantities[0] 
+	gPrevBattleInventoryQuantities[1] = gBattleInventoryQuantities[1] 
+	gPrevBattleInventoryQuantities[2] = gBattleInventoryQuantities[2] 
+	gPrevBattleInventoryQuantities[3] = gBattleInventoryQuantities[3] 
+
+	gPrevBattleInventoryItems[0] = gBattleInventoryItems[0] 
+	gPrevBattleInventoryItems[1] = gBattleInventoryItems[1] 
+	gPrevBattleInventoryItems[2] = gBattleInventoryItems[2] 
+	gPrevBattleInventoryItems[3] = gBattleInventoryItems[3] 
+
+	gBattleInventoryQuantities[0] = r1q
+	gBattleInventoryQuantities[1] = r2q
+	gBattleInventoryQuantities[2] = r3q
+	gBattleInventoryQuantities[3] = r4q
+
+	gBattleInventoryItems[0] = r1
+	gBattleInventoryItems[1] = r2
+	gBattleInventoryItems[2] = r3
+	gBattleInventoryItems[3] = r4
+	
+	for i=20, 5*(255-1), 5 do
+		gPrevBattleInventoryItems[i/5] = gBattleInventoryItems[i/5]
+		gPrevBattleInventoryQuantities[i/5] = gBattleInventoryQuantities[i/5]
+
+		gBattleInventoryItems[i/5] = segment:ReadUInt8(START_BATTLE_INVENTORY+i)
+		gBattleInventoryQuantities[i/5] = segment:ReadUInt8(START_BATTLE_INVENTORY+i+3)
+	end
+
+	return true
+end
+
+function updateBattleInventory(segment)
+	if segment == nil then
+		print("START	 updateBattleInventory()~~~~~~~~~~~~~~~~~~~~~~~~~~ is nil")
+		return
+	else
+		print("START	 updateBattleInventory()")
+	end
+	 
+	gBattleInventoryIsValid = isBattleInventoryValid(segment)
+	
+	if gInBattle == false and gBattleInventoryIsValid == false then
+		--print("END updateBattleEquip() - > END*")
+		gNewbattleInventoryScan = false
+		return
+	end
+
+	gNewbattleInventoryScan = true
+end
+
+function doBattleInventoryScan()
+    local TrackPrevItem = -3 --must be init to diff. value than TrackS!
+    local TrackS = -1
+	
+	local currentItem
+	local prevItem
+	local currentQty
+	local prevQty
+
+    for i=0, (255-1) do
+		currentItem = gBattleInventoryItems[i]
+		prevItem = gPrevBattleInventoryItems[i]
+		currentQty = gBattleInventoryQuantities[i]
+		prevQty = gPrevBattleInventoryQuantities[i]
+		
+		if currentItem == prevItem and currentQty == prevQty then 
+			if currentItem == 0xFF and currentQty == 0 then
+				----print("		emptyyyyyyyyyy") --do nothing
+			else
+				----print("		same item!: "..gItemNames[gBattleInventoryItems])
+			end
+		else
+			if currentItem ~= prevItem and currentItem ~= 0xFF and currentQty ~= 0 then --some non-empty item showed up in place of a previous item. Maybe a swap happened.
+				if TrackS == -1 then
+					TrackS = currentItem
+				else
+					--do nothing --item-swap occurred
+					--print("		possible swap. see: "..gItemNames[gBattleInventoryItems])
+				end
+			elseif currentItem == prevItem and currentQty ~= prevQty then --an item was used!
+				table.insert(gBattleItemsToSkip_table, currentItem)
+
+				if currentQty > prevQty then
+					updateTrackerItem(currentItem, 1, i )
+				elseif currentQty < prevQty then
+					updateTrackerItem(currentItem, -1, i )
+				end
+			elseif currentItem == 0xFF and currentQty == 0 then 
+				TrackPrevItem = prevItem
+			end
+
+			--forward scan for empty-swap
+			if TrackPrevItem == currentItem then --the blanked item was found in forward-scan!
+				--print("		updateBattleInventory() -> [x] TrackPrevItem == gBattleInventoryItems")
+				--do nothing; --item-swap occurred
+			else
+				--print("		updateBattleInventory() -> [ ] TrackPrevItem == gBattleInventoryItems")
+			end
+		end
+
+        prevItem = currentItem
+        prevQty = currentQty
+    end
+
+	--trackS check for empty-swap or depletion
+	if TrackPrevItem == TrackS then --down to up swap. empty was top. S was bottom.
+		--print("		TrackPrevItem == TrackS")
+		--do nothing
+		--print("		Doing nothing. down to up swap. empty was top. S was bottom.")
+
+	elseif TrackPrevItem >= 0 and TrackS == -1 then
+		--print("		TrackPrevItem >= 0 and TrackS == -1")
+		table.insert(gBattleItemsToSkip_table, TrackPrevItem)
+		--print("		using -1 **deplete**: "..gItemNames[TrackPrevItem])
+		--print("		7")
+		updateTrackerItem(TrackPrevItem, -1) --deplete occurred
+	else
+		--print("		updateBattleInventory() -> [ ] TrackPrevItem == TrackS ELSE")
+	end
+  
+	--print("END	 updateBattleInventory() -> [x] ")
+end
+ 
+function isBattleEquipValid(segment)
+	----
+	---- CHUNK
+	gPrevBattleEquipItems[0] = gBattleEquipItems[0]
+	gPrevBattleEquipItems[1] = gBattleEquipItems[1]
+	gPrevBattleEquipItems[2] = gBattleEquipItems[2]
+	gPrevBattleEquipItems[3] = gBattleEquipItems[3]
+	gPrevBattleEquipItems[4] = gBattleEquipItems[4]
+	gPrevBattleEquipItems[5] = gBattleEquipItems[5]
+	gPrevBattleEquipItems[6] = gBattleEquipItems[6]
+	gPrevBattleEquipItems[7] = gBattleEquipItems[7]
+	
+	for i=0, 35, 5 do
+		--print("i: "..i)
+		gBattleEquipItems[i/5] = segment:ReadUInt8(START_BATTLE_RIGHT_HAND_EQUIPPED+i)
+	end
+
+	local flag = true
+	if gBattleEquipItems[0] == BATTLE_EQUIP_INIT_1[0] and gBattleEquipItems[1] == BATTLE_EQUIP_INIT_1[1] and gBattleEquipItems[2] == BATTLE_EQUIP_INIT_1[2] and gBattleEquipItems[3] == BATTLE_EQUIP_INIT_1[3] and gBattleEquipItems[4] == BATTLE_EQUIP_INIT_1[4] and gBattleEquipItems[5] == BATTLE_EQUIP_INIT_1[5] and gBattleEquipItems[6] == BATTLE_EQUIP_INIT_1[6] and gBattleEquipItems[7] == BATTLE_EQUIP_INIT_1[7] then
+		--print("			 updateBattleEquip() => BATTLE_EQUIP_INIT_1 detected!")
+		flag = false
+	elseif gBattleEquipItems[0] == BATTLE_EQUIP_INIT_2[0] and gBattleEquipItems[1] == BATTLE_EQUIP_INIT_2[1] and gBattleEquipItems[2] == BATTLE_EQUIP_INIT_2[2] and gBattleEquipItems[3] == BATTLE_EQUIP_INIT_2[3] and gBattleEquipItems[4] == BATTLE_EQUIP_INIT_2[4] and gBattleEquipItems[5] == BATTLE_EQUIP_INIT_2[5] and gBattleEquipItems[6] == BATTLE_EQUIP_INIT_2[6] and gBattleEquipItems[7] == BATTLE_EQUIP_INIT_2[7] then
+		--print("			 updateBattleEquip() => BATTLE_EQUIP_INIT_2 detected!")
+		flag = false
+	elseif gBattleEquipItems[0] == BATTLE_EQUIP_INIT_3[0] and gBattleEquipItems[1] == BATTLE_EQUIP_INIT_3[1] and gBattleEquipItems[2] == BATTLE_EQUIP_INIT_3[2] and gBattleEquipItems[3] == BATTLE_EQUIP_INIT_3[3] and gBattleEquipItems[4] == BATTLE_EQUIP_INIT_3[4] and gBattleEquipItems[5] == BATTLE_EQUIP_INIT_3[5] and gBattleEquipItems[6] == BATTLE_EQUIP_INIT_3[6] and gBattleEquipItems[7] == BATTLE_EQUIP_INIT_3[7] then
+		--print("			 updateBattleEquip() => BATTLE_EQUIP_INIT_3 detected!")
+		flag = false
+	end
+	---- CHUNK
+	----
+
+	return flag
+end
+
+function updateBattleEquip(segment) --we care about battle-equip changes because when an equipped item is moved down to battle inventory we want to add it to the skip-list for post battle item additions.
+	
+	if segment == nil then
+		--print("START	 updateBattleEquip()~~~~~~~~~~~~~~~~~~~~~~~~~~ is nil")
+		return
+	else
+		--print("START	 updateBattleEquip()")
+	end
+	 
+	gBattleEquipIsValid = isBattleEquipValid(segment)
+	
+	if gInBattle == false and gBattleEquipIsValid == false then
+		--print("END updateBattleEquip() - > END*")
+		gNewbattleEquipScan = false
+		return
+	end
+
+	gNewbattleEquipScan = true
+	-- --print("0: item: 0x"..string.format("%x",gBattleEquipItems[0]..""))
+	-- --print("1: item: 0x"..string.format("%x",gBattleEquipItems[1]..""))
+	-- --print("2: item: 0x"..string.format("%x",gBattleEquipItems[2]..""))
+	-- --print("3: item: 0x"..string.format("%x",gBattleEquipItems[3]..""))
+	-- --print("4: item: 0x"..string.format("%x",gBattleEquipItems[4]..""))
+	-- --print("5: item: 0x"..string.format("%x",gBattleEquipItems[5]..""))
+	-- --print("6: item: 0x"..string.format("%x",gBattleEquipItems[6]..""))
+	-- --print("7: item: 0x"..string.format("%x",gBattleEquipItems[7]..""))
+	--print("			 updateBattleEquip()~~~~~~~~~~~~~~~~~~~~~~~~~~ we're wearing stuff! or empty LUL gNewbattleEquipScan = true")
+
+	
+	--print("END updateBattleEquip() - > END")
+	 
+end
+
+function doBattleEquipScan()
+	--print("START doBattleEquipScan()")
+	if gNewbattleEquipScan ~= true then
+		return
+	end
+	
+	if gInBattle == true and gBattleEquipIsValid == true then
+		for i=0, 35, 5 do
+			--0		--party slot 1
+			--5		--party slot 2
+			--10		--party slot 3
+			--15		--party slot 4
+			--20		--party slot 1
+			--25		--party slot 2
+			--30		--party slot 3
+			--35		--party slot 4
+			--
+			local j
+			if i <= 15 then
+				j = (i/5)
+			elseif i >= 20 then
+				j = (i/5)-4
+			end
+
+			if gBattlePartySlotsActive[j] == true then
+				--print("		updateBattleEquip() -> Party member: "..j.." is active.")
+				  
+				if gBattleEquipItems[i/5] == gPrevBattleEquipItems[i/5] then
+					if gBattleEquipItems[i/5] == 0xFF then
+						--empty stays empty
+					else
+						--same item
+					end
+				else
+					if gBattleEquipItems[i/5] ~= gPrevBattleEquipItems[i/5] and gPrevBattleEquipItems[i/5] ~= 0xFF then
+						--new non-empty-item in slot --was a swap
+						--print("		YOU UN-EQUIPPED: 0x"..string.format("%x",gPrevBattleEquipItems[i/5]))
+						--print("		YOU EQUIPPED: 0x"..string.format("%x",gBattleEquipItems[i/5]))
+					elseif gBattleEquipItems[i/5] == 0xFF then 
+						--possible unequip occurred track It.
+						--print("		possible unequip occurred")
+						table.insert(gBattleItemsToSkip_table, gPrevBattleEquipItems[i/5])
+ 
+						
+						----print("		THIS HAPPENS HERE. storing gTrackBattleEquipChange: "..gItemNames[gTrackBattleEquipChange])
+					end
+
+				end
+			else
+				--print("		updateBattleEquip() -> Party member: "..j.." not active.")
+			end
+		end
+
+		gNewbattleEquipScan = false
+	end
+end
+
+function updateBattleActivePartyMemberSlots(segment)
+	--print("START updateBattleActivePartyMemberSlots()")
+
+	local battleslots = segment:ReadUInt8(BATTLE_PARTY_SLOTS_BITMASK)
+	
+	if battleslots == 0 then
+		return
+	elseif battleslots > 15 then
+		return
+	end
+
+	if ((battleslots & 1)  == 1) then --slot 1 is filled (top)
+		gBattlePartySlotsActive[0] = true
+		--print("			updateBattleActivePartyMemberSlots() 1 is active")
+	else
+		gBattlePartySlotsActive[0] = false
+		--print("			updateBattleActivePartyMemberSlots() 1 is NOT active")
+	end
+
+	if ((battleslots & 2)  == 2) then --slot 2 is filled
+		gBattlePartySlotsActive[1] = true
+		--print("			updateBattleActivePartyMemberSlots() 2 is active")
+	else
+		gBattlePartySlotsActive[1] = false
+		--print("			updateBattleActivePartyMemberSlots() 2 is NOT active")
+	end
+
+	if ((battleslots & 4)  == 4) then --slot 3 is filled
+		gBattlePartySlotsActive[2] = true
+		--print("			updateBattleActivePartyMemberSlots() 3 is active")
+	else
+		gBattlePartySlotsActive[2] = false
+		--print("			updateBattleActivePartyMemberSlots() 3 is NOT active")
+	end
+
+	if ((battleslots & 8)  == 8) then --slot 4 is filled (bottom)
+		gBattlePartySlotsActive[3] = true
+		--print("			updateBattleActivePartyMemberSlots() 4 is active")
+	else
+		gBattlePartySlotsActive[3] = false
+		--print("			updateBattleActivePartyMemberSlots() 4 is NOT active")
+	end
+
+	--print("battle slots (bits):  "..tostring(gBattlePartySlotsActive[0])..tostring(gBattlePartySlotsActive[1])..tostring(gBattlePartySlotsActive[2])..tostring(gBattlePartySlotsActive[3]))
+end
+
+--//TODO
+-- execute battle invent/equip updates upon first confirmed battle counter tick
+-- 
+-- CONSIDER: a stack where item-updates is pushed onto. so we can pop off it when we want i.e. on battle-confirm-tick-1.
+-- 			this can maybe also be used for item inventory fast-menu-ing issue:
+--			push onto stack(s) the contexts and the invent-changes.
+--			then, when a context set is found on the stack, perform pops off the activate-stack. 
+function updateBattleCounter(segment)
+	--print("START updateBattleCounter()")
+
+	local bc2 = segment:ReadUInt8(BATTLE_COUNTER+1)
+	local bc1 = segment:ReadUInt8(BATTLE_COUNTER)
+	
+
+	if bc1 == 0xFF and bc2 == 0xFF then
+		gInBattle = false
+		gBattleCounter1 = 0x00
+		gBattleCounter2 = 0x00
+		gBattleItemsToSkip_table = {}
+		--print("reset skiplist 1")
+		return
+	elseif bc1 == 0xE2 and bc2 == 0xE3 then
+		gInBattle = false
+		gBattleCounter1 = 0x00
+		gBattleCounter2 = 0x00
+		gBattleItemsToSkip_table = {}
+		--print("reset skiplist 2")
+		return
+	elseif bc1 > gBattleCounter1 and bc2 == 0x00 then
+			--print("bc1: 0x"..string.format("%x",bc1).." 	bc2: 0x"..string.format("%x",bc2))
+		 	gInBattle = true
+			gBattleCounter1 = bc1
+			gBattleCounter2 = bc2
+			doBattleEquipScan()
+			doBattleInventoryScan()
+	elseif bc1 == 0xFF and bc2 >= gBattleCounter2 then 
+			--print("**bc1: 0x"..string.format("%x",bc1).." 	bc2: 0x"..string.format("%x",bc2))
+		 	gInBattle = true
+			gBattleCounter1 = bc1
+			gBattleCounter2 = bc2
+		 	doBattleEquipScan()
+			doBattleInventoryScan()
+	end
+
+	
+
+
+
+
+
+	 --print("END updateBattleCounter()")
 end
 
 --
 -- Set up memory watches on memory used for autotracking.
 --
-printDebug("Adding memory watches")
+--printDebug("Adding memory watches")
 ScriptHost:AddMemoryWatch("Party", 0x7E1EDE, 2, updateParty)
 ScriptHost:AddMemoryWatch("Espers", 0x7E1A69, 4, updateEspers)
 ScriptHost:AddMemoryWatch("Events", 0x7E1E80, 0xDF, updateEventsAndBosses)
@@ -2358,17 +2446,22 @@ ScriptHost:AddMemoryWatch("grabAllCharacterRecruitmentEquipment", START_CHARACTE
 --
 ScriptHost:AddMemoryWatch("updateInventoryItems", START_INVENTORY_ITEMS, 256, updateInventoryItems) --entire fucking inventory 1 of 2
 ScriptHost:AddMemoryWatch("updateInventoryItemQuantities", START_INVENTORY_QUANTITIES, 256, updateInventoryItemQuantities) --entire fucking inventory 2 of 2
-ScriptHost:AddMemoryWatch("updateBattleInventory", START_BATTLE_INVENTORY, 5*256, updateBattleInventory) --entire fucking battle inventory
 --
+ScriptHost:AddMemoryWatch("updateBattleEquip", START_BATTLE_RIGHT_HAND_EQUIPPED, 40, updateBattleEquip) --important! battle equip needs scanned BEFORE ALL OTHER BATTLE Watches!
+ScriptHost:AddMemoryWatch("updateBattleActivePartyMemberSlots", BATTLE_PARTY_SLOTS_BITMASK, 1, updateBattleActivePartyMemberSlots)
+ScriptHost:AddMemoryWatch("updateBattleCounter", BATTLE_COUNTER, 2, updateBattleCounter)
+ScriptHost:AddMemoryWatch("updateBattleInventory", START_BATTLE_INVENTORY, 5*256, updateBattleInventory) --entire fucking battle inventory
 ScriptHost:AddMemoryWatch("updateBattleNumAliveMonsters", BATTLE_NUM_ALIVE_MONSTERS, 1, updateBattleNumAliveMonsters)
 --
-ScriptHost:AddMemoryWatch("updateBattleInventoryEquip", START_BATTLE_RIGHT_HAND_EQUIPPED, 40, updateBattleInventoryEquip)
+
 ScriptHost:AddMemoryWatch("updateColosseumWager", COLOSSEUM_WAGER_ITEM, 1, updateColosseumWager)
 --
 ScriptHost:AddMemoryWatch("updateCurrentShop", CURRENT_SHOP, 1, updateCurrentShop)
 ScriptHost:AddMemoryWatch("updateShopItemList", CURRENT_SHOP_INVENTORY_START, 8, updateShopItemList)
 --
 ScriptHost:AddMemoryWatch("updateCurrentArea", CURRENT_AREA, 1, updateCurrentArea)
+--
+
 
 
 
@@ -2405,6 +2498,7 @@ ScriptHost:AddMemoryWatch("updateCurrentArea", CURRENT_AREA, 1, updateCurrentAre
 -- [x]AIRship unequip all, increments up items. also kohligen guy (who even uses that guy?)
 -- [x]airship [x]buy/[x]sell/[ ]item-use in same zone-area as unequip guy: are being ignored. partial fix. see below bug.
 -- [x] party menu item use. Depleting an item is not being captured. Uses prior to depletion are being captured. Fixed via gPrev flag.
+--[] battle inv all wonky
 
 -- KNOWN minor  ISSUES / limitations
 -- UI: inconsistent blue-background on items (these are separate captures)
@@ -2421,7 +2515,7 @@ ScriptHost:AddMemoryWatch("updateCurrentArea", CURRENT_AREA, 1, updateCurrentAre
 -- 		in order to re-GET the item name.
 -- rarely, chest item is missed. ex: zephyr cape was detected as empty item. possible 255 variable issue.
 
-print("START inits()")
+--print("START inits()")
 initCharNameArray()
 initCharactersActiveStatus()
 initgCharacterInitialEquipment_2d()
@@ -2429,7 +2523,6 @@ initItemArray()
 initInventoryItems()
 initInventoryQuantities()
 initBattleInventoryItems() 
-initBattleInventoryQuantities()
-initBattleItemsToSkip_table()
+initBattleInventoryQuantities() 
 initShopList_table()
-print("END inits()")
+--print("END inits()")

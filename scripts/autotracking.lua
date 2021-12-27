@@ -2146,7 +2146,7 @@ function doBattleEquipScan()
 				gPrevBattleInventoryQuantities[i] = gBattleInventoryQuantities[i]
 			end
 
-
+			gBattleEquipScanInitialized = true
 		end
 
 		
@@ -2185,14 +2185,17 @@ function doBattleEquipScan()
 						--print("		1YOU EQUIPPED: 0x"..string.format("%x",currentItem))
 
 						table.insert(gBattleItemsToSkip_table, prevItem)
+						print("		added to skiplist: "..string.format("%x",prevItem))
 					elseif currentItem ~= prevItem and prevItem ~= 0xFF and currentItem == 0xFF then 
 						--possible unequip occurred track It.
 						--print("		unequip occurred. Tracking this item.."..prevItem)
 						table.insert(gBattleItemsToSkip_table, prevItem)
+						print("		added to skiplist: "..string.format("%x",prevItem))
 					elseif currentItem ~= prevItem and prevItem == 0xFF and currentItem ~= 0xFF then
 						--newly equipped item
 						--print("		2YOU EQUIPPED: 0x"..string.format("%x",currentItem))
 						table.insert(gBattleItemsToSkip_table, currentItem)
+						print("		added to skiplist: "..string.format("%x",currentItem))
 
 						----print("		THIS HAPPENS HERE. storing gTrackBattleEquipChange: "..gItemNames[gTrackBattleEquipChange])
 					end
@@ -2302,6 +2305,7 @@ end
 
 
 function updateInventoryItems(segment)
+	print("START updateInventoryItems() - > START")
 	gPrevInventoryItemsChangeCount = 0
 
     for i=0, 255 do
@@ -2312,7 +2316,7 @@ function updateInventoryItems(segment)
 			gPrevInventoryItemsChangeCount = gPrevInventoryItemsChangeCount + 1
 		end
     end
-	 
+	print("END updateInventoryItems() - > START")
 end
 
 function updateInventoryItemQuantities(segment)
@@ -2459,6 +2463,10 @@ function processBattleOrInventoryScan(MODE)
 						if PotentiallyDepletedItem ~= nil and PotentiallyDepletedItem == SwapCandidateItem  then
 							-- PotentiallyDepletedItem was detected prior to now, but was moved upward to an empty slot which
 							-- is now being detected as SwapCandidateItem. so, an upper-to-lower swap occured. Exit
+							if MODE == "battle" then
+								table.insert(gBattleItemsToSkip_table, PotentiallyDepletedItem)
+								print("		added to skiplist: "..string.format("%x",PotentiallyDepletedItem))
+							end
 							print("END	 processBattleOrInventoryScan() - PotentiallyDepletedItem ~= nil and PotentiallyDepletedItem == SwapCandidateItem")
 							return
 						end
@@ -2467,7 +2475,14 @@ function processBattleOrInventoryScan(MODE)
 						--therefore, this other changed item must be its swap partner. 
 						--this case handles both upper-to-lower & lower-to-upper swaps.
 						--Exit.
-						print("END	 processBattleOrInventoryScan() - SwapCandidateItem ~= nil: SwapCandidateItem: ".."SwapCandidateItem: 0x"..string.format("%x",SwapCandidateItem))
+						 
+						if MODE == "battle" then
+							table.insert(gBattleItemsToSkip_table, currentItem)
+							print("		added to skiplist: "..string.format("%x",currentItem))
+							table.insert(gBattleItemsToSkip_table, SwapCandidateItem)
+							print("		added to skiplist: "..string.format("%x",SwapCandidateItem))
+						end
+						print("END	 processBattleOrInventoryScan() - SwapCandidateItem and currentItem are swaps")
 						return 
 					else
 						--new item(s)!
@@ -2476,6 +2491,7 @@ function processBattleOrInventoryScan(MODE)
 				elseif currentItem == prevItem and currentQty ~= prevQty then --an item was used!
 					if MODE == "battle" then
 						table.insert(gBattleItemsToSkip_table, currentItem)
+						print("		added to skiplist: "..string.format("%x",currentItem))
 					end
 
 					if currentQty > prevQty then
@@ -2499,6 +2515,12 @@ function processBattleOrInventoryScan(MODE)
 						--as SwapCandidateItem where the PotentiallyDepletedItem was LOWER in the battle item list, got swapped upward and
 						--was detected as SwapCandidateItem. Then, down here the LOWER item is now empty and detected as PotentiallyDepletedItem.
 						-- so, a swap did occur. Exit.
+
+						if MODE == "battle" then
+							table.insert(gBattleItemsToSkip_table, SwapCandidateItem)
+							print("		added to skiplist: "..string.format("%x",SwapCandidateItem))
+						end
+						
 						print("END	 processBattleOrInventoryScan() - SwapCandidateItem ~= nil and PotentiallyDepletedItem == SwapCandidateItem")
 						return
 					end
@@ -2516,6 +2538,7 @@ function processBattleOrInventoryScan(MODE)
 		-- an actual depletion occurred.
 		if MODE == "battle" then
 			table.insert(gBattleItemsToSkip_table, PotentiallyDepletedItem)
+			print("		added to skiplist: "..string.format("%x",PotentiallyDepletedItem))
 		end
 
 		updateTrackerItem(PotentiallyDepletedItem, -1 * PotentiallyDepletedItemQty)
@@ -2619,7 +2642,7 @@ ScriptHost:AddMemoryWatch("updateCurrentArea", CURRENT_AREA, 1, updateCurrentAre
 -- 		in order to re-GET the item name.
 -- rarely, chest item is missed. ex: zephyr cape was detected as empty item. possible 255 variable issue.
 
---print("START inits()")
+
 initCharNameArray()
 initCharactersActiveStatus()
 initgCharacterInitialEquipment_2d()
@@ -2628,4 +2651,24 @@ initHardCodedItemNames()
 initBattleInventoryItems() 
 initBattleInventoryQuantities() 
 initShopList_table()
---print("END inits()")
+
+
+-- battle items lists
+-- [x]use item -1
+-- [ ]swap two items
+-- [x]swap item with empty (up/down)
+-- [x]swap item with empty (down/up)
+-- [ ]swap equipped item down to [empty-inventory-slot] 
+-- [ ]swap equipped item down to [existing item inventory slot]
+-- [ ]swap equipped item with single qty item (i.e. equipped Dirk x01 with Knife x01)
+-- [ ]swap equipped item with multi qty item (i.e. equipped Dirk x01 with Knife x02)
+-- [ ]swap single-qty-item into empty equip slot  (i.e. equipped Empty with Knife x01)
+-- [ ]swap multi-qty-item into empty equip slot (i.e. equipped Empty x01 with Knife x02)
+-- 
+--
+--
+--
+--
+--
+--
+--

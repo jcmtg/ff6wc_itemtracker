@@ -2440,7 +2440,7 @@ function processBattleOrInventoryScan(MODE)
 				----print("		same item!: "..gItemNames[gBattleInventoryItems])
 			end
 		else
-			if isItemInSkipList(currentItem) then
+			if isItemInSkipList(currentItem) and MODE == "menu_inventory_or_cave" then
 				print("isItemInSkipList: "..string.format("%x",currentItem))
 				 --1. battle equip item unequipped and placed into >1 qty battle-item slot. 
 				 --2. battleinvent item was placed into blank equip slot

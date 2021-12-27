@@ -34,6 +34,7 @@ gBattlePartySlotsActive[2] = false
 gBattlePartySlotsActive[3] = false
 gNewbattleEquipScan = false
 gNewbattleInventoryScan = false
+gBattleEquipScanInitialized = false
 gBattleEquipIsValid = false
 gBattleInventoryIsValid = false
 gBattleItemsToSkip_table = {}
@@ -220,6 +221,7 @@ end
 
 function resetCurrentMode()
     gInBattle = false
+	gBattleEquipScanInitialized = false
 	gBattleItemsToSkip_table = {}
 		--print("reset skiplist 3")
     gInCave = false
@@ -245,6 +247,7 @@ function updatePlayerModeContext(segment)
     --print("START updatePlayerModeContext() -> "..readVal)
     if readVal ~= CONTEXT_MENU_1 and readVal ~= CONTEXT_CAVE_1 and readVal ~= CONTEXT_BATTLE_1  then --check for shop/player-menu, chest-hunting, or in battle
         gInBattle = false
+		gBattleEquipScanInitialized = false
 		gBattleItemsToSkip_table = {}
 		--print("reset skiplist 4")
 		gInCave = false
@@ -291,6 +294,7 @@ function updatePlayerModeContext(segment)
                 resetCurrentMode()
                 gInCave = true
 				gInBattle = false
+				gBattleEquipScanInitialized = false
 				gBattleItemsToSkip_table = {}
 		--print("reset skiplist 5")
             end
@@ -1989,8 +1993,10 @@ function isBattleInventoryValid(segment)
 end
 
 function updateBattleInventory(segment)
+	print("START	 updateBattleInventory()")
 	if segment == nil then
 		--print("START	 updateBattleInventory()~~~~~~~~~~~~~~~~~~~~~~~~~~ is nil")
+		print("END	 updateBattleInventory() ~out1")
 		return
 	else
 		--print("START	 updateBattleInventory()")
@@ -2001,10 +2007,12 @@ function updateBattleInventory(segment)
 	if gInBattle == false and gBattleInventoryIsValid == false then
 		--print("END updateBattleEquip() - > END*")
 		gNewbattleInventoryScan = false
+		print("END	 updateBattleInventory() ~out2")
 		return
 	end
 
 	gNewbattleInventoryScan = true
+	print("END	 updateBattleInventory()")
 end
 
 function doBattleInventoryScan_old()
@@ -2106,8 +2114,6 @@ function doBattleInventoryScan_old()
 end
  
 function isBattleEquipValid(segment)
-	----
-	---- CHUNK
 	gPrevBattleEquipItems[0] = gBattleEquipItems[0]
 	gPrevBattleEquipItems[1] = gBattleEquipItems[1]
 	gPrevBattleEquipItems[2] = gBattleEquipItems[2]
@@ -2117,10 +2123,14 @@ function isBattleEquipValid(segment)
 	gPrevBattleEquipItems[6] = gBattleEquipItems[6]
 	gPrevBattleEquipItems[7] = gBattleEquipItems[7]
 	
+
 	for i=0, 35, 5 do
 		--print("i: "..i)
 		gBattleEquipItems[i/5] = segment:ReadUInt8(START_BATTLE_RIGHT_HAND_EQUIPPED+i)
 	end
+
+	
+
 
 	local flag = true
 	if gBattleEquipItems[0] == BATTLE_EQUIP_INIT_1[0] and gBattleEquipItems[1] == BATTLE_EQUIP_INIT_1[1] and gBattleEquipItems[2] == BATTLE_EQUIP_INIT_1[2] and gBattleEquipItems[3] == BATTLE_EQUIP_INIT_1[3] and gBattleEquipItems[4] == BATTLE_EQUIP_INIT_1[4] and gBattleEquipItems[5] == BATTLE_EQUIP_INIT_1[5] and gBattleEquipItems[6] == BATTLE_EQUIP_INIT_1[6] and gBattleEquipItems[7] == BATTLE_EQUIP_INIT_1[7] then
@@ -2147,11 +2157,14 @@ function zeroOutBattleEquip()
 		gPrevBattleEquipItems[i] = 0xE7
 	end
 end
+ 
 
-function updateBattleEquip(segment) --we care about battle-equip changes because when an equipped item is moved down to battle inventory we want to add it to the skip-list for post battle item additions.
+function updateBattleEquip(segment) 
+	print("START	 updateBattleEquip()")
+	--we care about battle-equip changes because when an equipped item is moved down to battle inventory we want to add it to the skip-list for post battle item additions.
 	
 	if segment == nil then
-		--print("START	 updateBattleEquip()~~~~~~~~~~~~~~~~~~~~~~~~~~ is nil")
+		print("END	 updateBattleEquip() ~Out1")
 		return
 	else
 		--print("START	 updateBattleEquip()")
@@ -2162,9 +2175,11 @@ function updateBattleEquip(segment) --we care about battle-equip changes because
 	if gInBattle == false and gBattleEquipIsValid == false then
 		--print("END updateBattleEquip() - > END*")
 		gNewbattleEquipScan = false
+		print("END	 updateBattleEquip() ~Out2")
 		return
 	end
 
+	print("START	 updateBattleEquip() ~ in")
 	gNewbattleEquipScan = true
 	-- --print("0: item: 0x"..string.format("%x",gBattleEquipItems[0]..""))
 	-- --print("1: item: 0x"..string.format("%x",gBattleEquipItems[1]..""))
@@ -2178,16 +2193,39 @@ function updateBattleEquip(segment) --we care about battle-equip changes because
 
 	
 	--print("END updateBattleEquip() - > END")
-	 
+	
+
+	print("END	 updateBattleEquip()")
 end
 
 function doBattleEquipScan()
-	--print("START doBattleEquipScan()")
+	print("START doBattleEquipScan()")
 	if gNewbattleEquipScan ~= true then
+		print("END doBattleEquipScan() ~out1")
 		return
 	end
 	
 	if gInBattle == true and gBattleEquipIsValid == true then
+
+
+
+		if gBattleEquipScanInitialized ~= true then
+			--this preps the change-scanner to IGNORE the battle-equipmentinv & battleequip being initialized
+			print("		doBattleEquipScan() ~~ 	gBattleEquipScanInitialized ~= true")
+			
+			for i=0, 7 do
+				gPrevBattleEquipItems[i] = gBattleEquipItems[i]
+			end
+
+			for i=0, 255 do
+				gPrevBattleInventoryItems[i] = gBattleInventoryItems[i]
+				gPrevBattleInventoryQuantities[i] = gBattleInventoryQuantities[i]
+			end
+
+
+		end
+
+		
 		local currentItem
 		local prevItem
 		local currentQty
@@ -2243,7 +2281,10 @@ function doBattleEquipScan()
 
 		gNewbattleEquipScan = false
 	end
+	print("END doBattleEquipScan()")
 end
+
+
 
 function updateBattleActivePartyMemberSlots(segment)
 	--print("START updateBattleActivePartyMemberSlots()")
@@ -2291,13 +2332,6 @@ function updateBattleActivePartyMemberSlots(segment)
 	--print("battle slots (bits):  "..tostring(gBattlePartySlotsActive[0])..tostring(gBattlePartySlotsActive[1])..tostring(gBattlePartySlotsActive[2])..tostring(gBattlePartySlotsActive[3]))
 end
 
---//TODO
--- execute battle invent/equip updates upon first confirmed battle counter tick
--- 
--- CONSIDER: a stack where item-updates is pushed onto. so we can pop off it when we want i.e. on battle-confirm-tick-1.
--- 			this can maybe also be used for item inventory fast-menu-ing issue:
---			push onto stack(s) the contexts and the invent-changes.
---			then, when a context set is found on the stack, perform pops off the activate-stack. 
 function updateBattleCounter(segment)
 	--print("START updateBattleCounter()")
 
@@ -2307,6 +2341,7 @@ function updateBattleCounter(segment)
 
 	if bc1 == 0xFF and bc2 == 0xFF then
 		gInBattle = false
+		gBattleEquipScanInitialized = false
 		gBattleCounter1 = 0x00
 		gBattleCounter2 = 0x00
 		gBattleItemsToSkip_table = {}
@@ -2314,6 +2349,7 @@ function updateBattleCounter(segment)
 		return
 	elseif bc1 == 0xE2 and bc2 == 0xE3 then
 		gInBattle = false
+		gBattleEquipScanInitialized = false
 		gBattleCounter1 = 0x00
 		gBattleCounter2 = 0x00
 		gBattleItemsToSkip_table = {}
@@ -2324,23 +2360,19 @@ function updateBattleCounter(segment)
 		 	gInBattle = true
 			gBattleCounter1 = bc1
 			gBattleCounter2 = bc2
+			
 			doBattleEquipScan()
+			
 			processBattleOrInventoryScan("battle")
 	elseif bc1 == 0xFF and bc2 >= gBattleCounter2 then 
 			--print("**bc1: 0x"..string.format("%x",bc1).." 	bc2: 0x"..string.format("%x",bc2))
 		 	gInBattle = true
 			gBattleCounter1 = bc1
 			gBattleCounter2 = bc2
+
 		 	doBattleEquipScan()
 			processBattleOrInventoryScan("battle")
-	end
-
-	
-
-
-
-
-
+	end 
 	 --print("END updateBattleCounter()")
 end
 
@@ -2364,7 +2396,7 @@ function updateInventoryItemQuantities(segment)
 
 	if gCurrentArea == 0x07 or gCurrentArea == 0x0C or gCurrentArea == 0xBD then
 		if gInMenu == false  then
-			--print("		------------------IGNORING DUDE WHO UNEQUIP EVERYTHING -------------------------------------")
+			--print("		------------------IGNORING DUDE WHO UNEQUIPS EVERYTHING -------------------------------------")
 			return
 		end
 	end
@@ -2440,9 +2472,9 @@ function processBattleOrInventoryScan(MODE)
 	print("START	processBattleOrInventoryScan("..MODE..")...gPrevInventoryItemsChangeCount: "..gPrevInventoryItemsChangeCount)
 	if MODE == "battle" then
 		if gNewbattleInventoryScan == false then
-			print("out...")
+			print("END out 1...")
 			return
-		end
+		end 
 
 		gNewbattleInventoryScan = false
 	end
@@ -2489,7 +2521,7 @@ function processBattleOrInventoryScan(MODE)
 				 --1. battle equip item unequipped and placed into >1 qty battle-item slot. 
 				 --2. battleinvent item was placed into blank equip slot
 			else
-				print("prevItem: 0x"..string.format("%x",prevItem).."	currentItem: 0x"..string.format("%x",currentItem).."	prevQty: 0x"..string.format("%x",prevQty).."	currentQty: 0x"..string.format("%x",currentQty))
+				print("		prevItem: 0x"..string.format("%x",prevItem).."	currentItem: 0x"..string.format("%x",currentItem).."	prevQty: 0x"..string.format("%x",prevQty).."	currentQty: 0x"..string.format("%x",currentQty))
 				if currentItem ~= prevItem and currentItem ~= 0xFF and currentQty ~= 0 then 
 					--BATTLE: 	some non-empty item showed up in place of a previous item. Maybe a swap happened. Maybe reward.
 					--MENU:		either chest, reward, or swap

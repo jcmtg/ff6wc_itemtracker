@@ -265,6 +265,7 @@ function updatePlayerModeContext(segment)
                 resetCurrentMode()
                 gInMenu = true
 				table.insert(gPrevSubMenuContexts_table, CONTEXT_MENU_3) --push
+				print("		 updatePlayerModeMenuSubContext() ----------------->push"..CONTEXT_MENU_3.." <----------------------***")
             end
         end
     end

@@ -309,7 +309,7 @@ end
 
 
 function updatePlayerModeMenuSubContext(segment)
-    --print("START updatePlayerModeMenuSubContext()")
+    print("START updatePlayerModeMenuSubContext()")
 	gInMenu_Significant = false
 
     if gInMenu ~= true then
@@ -326,11 +326,11 @@ function updatePlayerModeMenuSubContext(segment)
 		table.remove(gPrevSubMenuContexts_table, 1) --pop
 	end
 	table.insert(gPrevSubMenuContexts_table, readVal) --push
-	--print("		 updatePlayerModeMenuSubContext() ----------------->push"..readVal.." <----------------------")
+	print("		 updatePlayerModeMenuSubContext() ----------------->push"..readVal.." <----------------------")
 
 	 
 
-    --print("		current sub context: "..readVal)
+    print("		current sub context: "..readVal)
 	 
 	
 
@@ -341,22 +341,29 @@ function updatePlayerModeMenuSubContext(segment)
 		return
 	end
 
-	if isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE) or isInPrevSubMenuContexts(CONTEXT_MENU_3) then
-		--print("		isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE)")
+	if isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE) and isInPrevSubMenuContexts(CONTEXT_MENU_3) then
+		print("		isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE) and isInPrevSubMenuContexts(CONTEXT_MENU_3)")
+		gInMenu_Significant = true
+
+		return
+	end
+
+	if isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE)  then
+		print("		isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE) ")
 		gInMenu_Significant = true
 
 		return
 	end
 
 	if isInPrevSubMenuContexts(CONTEXT_MENU_SUB_SHOP_BUY_1) then
-		--print("		isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE)")
+		print("		isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE)")
 		gInMenu_Significant = true
 
 		return
 	end
 
 	if isInPrevSubMenuContexts(CONTEXT_MENU_SUB_SHOP_SELL_1) then
-		--print("		isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE)")
+		print("		isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE)")
 		gInMenu_Significant = true
 
 		return
@@ -366,7 +373,7 @@ function updatePlayerModeMenuSubContext(segment)
  
 
     if readVal == CONTEXT_MENU_SUB_SHOP_BUY_1 or readVal == CONTEXT_MENU_SUB_SHOP_BUY_2 or readVal == CONTEXT_MENU_SUB_SHOP_BUY_3 or readVal == CONTEXT_MENU_SUB_SHOP_SELL_1 or readVal == CONTEXT_MENU_SUB_SHOP_SELL_2 or readVal == CONTEXT_MENU_SUB_SHOP_SELL_3 then
-		--print("		top, long, case: SHOP BUY_SELL")
+		print("		top, long, case: SHOP BUY_SELL")
         gInMenu_Significant = true
 
 		if isShopListLoaded() then
@@ -374,19 +381,19 @@ function updatePlayerModeMenuSubContext(segment)
 		end
  
 	elseif readVal == CONTEXT_MENU_SUB_COLI_1 or readVal == CONTEXT_MENU_SUB_COLI_2 then
-		--print("		CONTEXT_MENU_SUB_COLI_1 == 0x72 or CONTEXT_MENU_SUB_COLI_2 == 0x76")
+		print("		CONTEXT_MENU_SUB_COLI_1 == 0x72 or CONTEXT_MENU_SUB_COLI_2 == 0x76")
 		gInMenu_Significant = true
     elseif readVal == CONTEXT_MENU_SUB_EQUIP_OPTIMUM_CAN_BE_PRESSED or readVal == CONTEXT_MENU_SUB_EQUIP or readVal == CONTEXT_MENU_SUB_EQUIP_REMOVE then
-		--print("		readVal == CONTEXT_MENU_SUB_EQUIP_OPTIMUM_CAN_BE_PRESSED or readVal == CONTEXT_MENU_SUB_EQUIP or readVal == CONTEXT_MENU_SUB_EQUIP_REMOVE")
+		print("		readVal == CONTEXT_MENU_SUB_EQUIP_OPTIMUM_CAN_BE_PRESSED or readVal == CONTEXT_MENU_SUB_EQUIP or readVal == CONTEXT_MENU_SUB_EQUIP_REMOVE")
 		gInMenu_Significant = false
 	elseif readVal == CONTEXT_MENU_SUB_RELIC_EQUIP or readVal == CONTEXT_MENU_SUB_RELIC_REMOVE then
-		--print("		readVal == CONTEXT_MENU_SUB_RELIC_EQUIP or readVal == CONTEXT_MENU_SUB_RELIC_REMOVE")
+		print("		readVal == CONTEXT_MENU_SUB_RELIC_EQUIP or readVal == CONTEXT_MENU_SUB_RELIC_REMOVE")
 		gInMenu_Significant = false
 	else
-		--print("		else")
+		print("		else")
         gInMenu_Significant = false
     end
-	--print("END updatePlayerModeMenuSubContext()")
+	print("END updatePlayerModeMenuSubContext()")
 end
  
 function initCharNameArray()
@@ -500,7 +507,7 @@ function isInPrevSubMenuContexts(contextid)
     for index, value in ipairs(gPrevSubMenuContexts_table) do
         
         if value == contextid then
-            --print("		prevContext: "..value.." *")
+            print("		prevContext: "..value.." *")
             return true
 		else
 			--print("		prevContext: "..value)
@@ -1961,17 +1968,35 @@ function isBattleInventoryValid(segment)
 	gBattleInventoryItems[2] = r3
 	gBattleInventoryItems[3] = r4
 
+	local count = 0
+
 	if gPrevBattleInventoryItems[0] ~= gBattleInventoryItems[0] and gPrevBattleInventoryQuantities[0] ~= gBattleInventoryQuantities[0] then
 		gPrevInventoryItemsChangeCount = gPrevInventoryItemsChangeCount + 1
+
+		if gPrevBattleInventoryItems[0] == 0xFF and gBattleInventoryItems[0] ~= 0xFF then
+			count = count + 1
+		end
 	end
 	if gPrevBattleInventoryItems[1] ~= gBattleInventoryItems[1] and gPrevBattleInventoryQuantities[1] ~= gBattleInventoryQuantities[1] then
 		gPrevInventoryItemsChangeCount = gPrevInventoryItemsChangeCount + 1
+
+		if gPrevBattleInventoryItems[1] == 0xFF and gBattleInventoryItems[1] ~= 0xFF then
+			count = count + 1
+		end
 	end
 	if gPrevBattleInventoryItems[2] ~= gBattleInventoryItems[2] and gPrevBattleInventoryQuantities[2] ~= gBattleInventoryQuantities[2] then
 		gPrevInventoryItemsChangeCount = gPrevInventoryItemsChangeCount + 1
+
+		if gPrevBattleInventoryItems[2] == 0xFF and gBattleInventoryItems[2] ~= 0xFF then
+			count = count + 1
+		end
 	end
 	if gPrevBattleInventoryItems[3] ~= gBattleInventoryItems[3] and gPrevBattleInventoryQuantities[3] ~= gBattleInventoryQuantities[3] then
 		gPrevInventoryItemsChangeCount = gPrevInventoryItemsChangeCount + 1
+
+		if gPrevBattleInventoryItems[3] == 0xFF and gBattleInventoryItems[3] ~= 0xFF then
+			count = count + 1
+		end
 	end
 	
 
@@ -1985,8 +2010,17 @@ function isBattleInventoryValid(segment)
 
 		if gPrevBattleInventoryItems[i/5] ~= gBattleInventoryItems[i/5] and gPrevBattleInventoryQuantities[i/5] ~= gBattleInventoryQuantities[i/5] then
 			gPrevInventoryItemsChangeCount = gPrevInventoryItemsChangeCount + 1
+
+			if gPrevBattleInventoryItems[i] == 0xFF and gBattleInventoryItems[i] ~= 0xFF then
+				count = count + 1
+			end
 		end
 		
+	end
+
+	if count == gPrevInventoryItemsChangeCount then
+		print("		count == gPrevInventoryItemsChangeCount .. out A")
+		return false
 	end
 
 	return true
@@ -2030,7 +2064,6 @@ function isBattleEquipValid(segment)
 
 	for i=0, 35, 5 do
 		gBattleEquipItems[i/5] = segment:ReadUInt8(START_BATTLE_RIGHT_HAND_EQUIPPED+i)
-		print("		i: "..i.." 0x"..string.format("%x",gBattleEquipItems[i/5]).."	item: "..gItemNames[gBattleEquipItems[i/5]])
 	end
 
 	
@@ -2085,14 +2118,14 @@ function updateBattleEquip(segment)
 
 	print("START	 updateBattleEquip() ~ in")
 	gNewbattleEquipScan = true
-	print("0: item: 0x"..string.format("%x",gBattleEquipItems[0]..""))
-	print("1: item: 0x"..string.format("%x",gBattleEquipItems[1]..""))
-	print("2: item: 0x"..string.format("%x",gBattleEquipItems[2]..""))
-	print("3: item: 0x"..string.format("%x",gBattleEquipItems[3]..""))
-	print("4: item: 0x"..string.format("%x",gBattleEquipItems[4]..""))
-	print("5: item: 0x"..string.format("%x",gBattleEquipItems[5]..""))
-	print("6: item: 0x"..string.format("%x",gBattleEquipItems[6]..""))
-	print("7: item: 0x"..string.format("%x",gBattleEquipItems[7]..""))
+	-- print("0: item: 0x"..string.format("%x",gBattleEquipItems[0]..""))
+	-- print("1: item: 0x"..string.format("%x",gBattleEquipItems[1]..""))
+	-- print("2: item: 0x"..string.format("%x",gBattleEquipItems[2]..""))
+	-- print("3: item: 0x"..string.format("%x",gBattleEquipItems[3]..""))
+	-- print("4: item: 0x"..string.format("%x",gBattleEquipItems[4]..""))
+	-- print("5: item: 0x"..string.format("%x",gBattleEquipItems[5]..""))
+	-- print("6: item: 0x"..string.format("%x",gBattleEquipItems[6]..""))
+	-- print("7: item: 0x"..string.format("%x",gBattleEquipItems[7]..""))
 	--print("			 updateBattleEquip()~~~~~~~~~~~~~~~~~~~~~~~~~~ we're wearing stuff! or empty LUL gNewbattleEquipScan = true")
 
 	
@@ -2163,18 +2196,18 @@ function doBattleEquipScan()
 						--prep skiplist
 						if currentItem == 0xFF then
 							--unequip
-							table.insert(gBattleItemsToSkip_table, {prevItem, "e"})
+							insertIntoSkipList(gBattleItemsToSkip_table, {prevItem, "e"})
 							print("		added to skip list -e: "..string.format("%x",prevItem))
 						elseif prevItem == 0xFF then
 							--equip from empty
-							table.insert(gBattleItemsToSkip_table, {currentItem,"e"})
+							insertIntoSkipList(gBattleItemsToSkip_table, {currentItem,"e"})
 							print("		added to skip list -e: "..string.format("%x",currentItem))
 						else
 							--swap equip
-							table.insert(gBattleItemsToSkip_table, {currentItem,"e"})
+							insertIntoSkipList(gBattleItemsToSkip_table, {currentItem,"e"})
 							print("		added to skip list -e: "..string.format("%x",currentItem))
 
-							table.insert(gBattleItemsToSkip_table, {prevItem,"e"})
+							insertIntoSkipList(gBattleItemsToSkip_table, {prevItem,"e"})
 							print("		added to skip list -e: "..string.format("%x",prevItem))
 						end
 					end
@@ -2197,6 +2230,7 @@ function updateInventoryItems(segment)
 		
 		gPrevInventoryItems[i] = gInventoryItems[i]
         gInventoryItems[i] = segment:ReadUInt8(START_INVENTORY_ITEMS+i) 
+
 		if gPrevInventoryItems[i] ~= gInventoryItems[i] then
 			gPrevInventoryItemsChangeCount = gPrevInventoryItemsChangeCount + 1
 		end
@@ -2209,7 +2243,7 @@ function updateInventoryItemQuantities(segment)
 
 	if gCurrentArea == 0x07 or gCurrentArea == 0x0C or gCurrentArea == 0xBD then
 		if gInMenu == false  then
-			--print("		------------------IGNORING DUDE WHO UNEQUIPS EVERYTHING -------------------------------------")
+			print("		------------------IGNORING DUDE WHO UNEQUIPS EVERYTHING -------------------------------------")
 			return
 		end
 	end
@@ -2219,6 +2253,13 @@ function updateInventoryItemQuantities(segment)
 		
 		gPrevInventoryQuantities[i] = gInventoryQuantities[i]
 		gInventoryQuantities[i] = segment:ReadUInt8(START_INVENTORY_QUANTITIES+i)
+
+		--debug
+		if gInventoryItems[i] ~= 0xFF then
+			print("		i: "..i.." item: "..gItemNames[gInventoryItems[i]])
+		end
+		--end debug
+
 
 		if gPrevInventoryQuantities[i] == 0xFF then
 			gPrevInventoryQuantities[i] = 0x00
@@ -2235,8 +2276,11 @@ end
 
 
 function processBattleOrInventoryScan(MODE)
-	print("START	processBattleOrInventoryScan("..MODE..")...gPrevInventoryItemsChangeCount: "..gPrevInventoryItemsChangeCount)
-	if MODE == "battle" then
+	print("START	processBattleOrInventoryScan("..MODE..")	gInMenu_Significant: "..tostring(gInMenu_Significant).."		gPrevInventoryItemsChangeCount: "..gPrevInventoryItemsChangeCount)
+	if gInMenu == true and gInMenu_Significant ~= true then
+		print("END out 0...")
+		return
+	elseif MODE == "battle" then
 		if gNewbattleInventoryScan == false then
 			print("END out 1...")
 			return
@@ -2244,7 +2288,7 @@ function processBattleOrInventoryScan(MODE)
 
 		gNewbattleInventoryScan = false
 	end
-
+	-- we're in CAVE or BATTLE or MENU-SIGNIFICANT
 	
 
     local PotentiallyDepletedItem
@@ -2256,6 +2300,8 @@ function processBattleOrInventoryScan(MODE)
 	local prevItem
 	local currentQty
 	local prevQty
+
+	local IN_SKIPLIST
 
     for i=0, (255-1) do
 		if MODE == "battle" then
@@ -2282,20 +2328,34 @@ function processBattleOrInventoryScan(MODE)
 				----print("		same item!: "..gItemNames[gBattleInventoryItems])
 			end
 		else
-			if isItemInSkipList(currentItem,"e") and MODE == "battle" then
-				print("isItemInSkipList -e: "..string.format("%x",currentItem))
-				table.insert(gBattleItemsToSkip_table, {currentItem,"e2"})
-			elseif isItemInSkipList(currentItem,"i") and MODE == "menu_inventory_or_cave" then
-				print("isItemInSkipList -i: "..string.format("%x",currentItem))
-			elseif isItemInSkipList(currentItem,"e2") and MODE == "menu_inventory_or_cave" then
-				print("isItemInSkipList -e2: "..string.format("%x",currentItem))
-			else
-				print("		prevItem: 0x"..string.format("%x",prevItem).."	currentItem: 0x"..string.format("%x",currentItem).."	prevQty: 0x"..string.format("%x",prevQty).."	currentQty: 0x"..string.format("%x",currentQty))
+			IN_SKIPLIST = false
+			if MODE == "battle" then
+				if isItemInSkipList(currentItem,"e") then
+					IN_SKIPLIST = true
+					print("isItemInSkipList -e: "..string.format("%x",currentItem))
+					insertIntoSkipList(gBattleItemsToSkip_table, {currentItem,"e2"})
+				end
+			elseif MODE == "menu_inventory_or_cave" then
+				if isItemInSkipList(currentItem,"i") then
+					IN_SKIPLIST = true
+					print("isItemInSkipList -i: "..string.format("%x",currentItem))
+				elseif isItemInSkipList(currentItem,"e2") then
+					IN_SKIPLIST = true
+					print("isItemInSkipList -e: "..string.format("%x",currentItem))
+				elseif isItemInSkipList(currentItem,"e") then
+					IN_SKIPLIST = true
+					print("isItemInSkipList -e2: "..string.format("%x",currentItem))
+				end
+			end
+
+			
+			if not IN_SKIPLIST then
+				print("		prevItem: 0x"..string.format("%x",prevItem).."	currentItem: 0x"..string.format("%x",currentItem).."	prevQty: "..prevQty.."	currentQty: "..currentQty)
 				if currentItem ~= prevItem and currentItem ~= 0xFF and currentQty ~= 0 then 
 					--BATTLE: 	some non-empty item showed up in place of a previous item. Maybe a swap happened. Maybe reward.
 					--MENU:		either chest, reward, or swap
 					print("		processBattleOrInventoryScan() -> 0x"..string.format("%x",currentItem).." showed up!")
-					if SwapCandidateItem == nil and gPrevInventoryItemsChangeCount <= 2 then
+					if SwapCandidateItem == nil and gInCave == false then
 						SwapCandidateItem = currentItem
 						print("		SwapCandidateItem set to: "..string.format("%x",currentItem))
 
@@ -2305,24 +2365,24 @@ function processBattleOrInventoryScan(MODE)
 							-- PotentiallyDepletedItem was detected prior to now, but was moved upward to an empty slot which
 							-- is now being detected as SwapCandidateItem. so, an upper-to-lower swap occured. Exit
 							if MODE == "battle" then
-								table.insert(gBattleItemsToSkip_table, {PotentiallyDepletedItem,"i"})
-								print("		added to skiplist: "..string.format("%x",PotentiallyDepletedItem))
+								insertIntoSkipList(gBattleItemsToSkip_table, {PotentiallyDepletedItem,"i"})
+								print("		added to skiplist -i: "..string.format("%x",PotentiallyDepletedItem))
 							end
 							print("END	 processBattleOrInventoryScan() - PotentiallyDepletedItem ~= nil and PotentiallyDepletedItem == SwapCandidateItem")
 							return
 						end
-					elseif gPrevInventoryItemsChangeCount <= 2 then
+					elseif gInCave == false then
 						--SwapCandidateItem isn't empty. So we already found a changed item.
 						--therefore, this other changed item must be its swap partner. 
 						--this case handles both upper-to-lower & lower-to-upper swaps.
 						--track the items, then Exit.
 						 
 						if MODE == "battle" then
-							table.insert(gBattleItemsToSkip_table, {currentItem,"i"})
-							print("		added to skiplist: "..string.format("%x",currentItem))
+							insertIntoSkipList(gBattleItemsToSkip_table, {currentItem,"i"})
+							print("		added to skiplist -i : "..string.format("%x",currentItem))
 
-							table.insert(gBattleItemsToSkip_table, {SwapCandidateItem,"i"})
-							print("		added to skiplist: "..string.format("%x",SwapCandidateItem))
+							insertIntoSkipList(gBattleItemsToSkip_table, {SwapCandidateItem,"i"})
+							print("		added to skiplist -i: "..string.format("%x",SwapCandidateItem))
 						end
 						print("END	 processBattleOrInventoryScan() - SwapCandidateItem and currentItem are swaps")
 						return 
@@ -2332,8 +2392,8 @@ function processBattleOrInventoryScan(MODE)
 					end
 				elseif currentItem == prevItem and currentQty ~= prevQty then --an item was used!
 					if MODE == "battle" then
-						table.insert(gBattleItemsToSkip_table, {currentItem,"i"})
-						print("		added to skiplist: "..string.format("%x",currentItem))
+						insertIntoSkipList(gBattleItemsToSkip_table, {currentItem,"i"})
+						print("		added to skiplist -i: "..string.format("%x",currentItem))
 					end
 
 					if currentQty > prevQty then
@@ -2359,8 +2419,8 @@ function processBattleOrInventoryScan(MODE)
 						-- so, a swap did occur. Exit.
 
 						if MODE == "battle" then
-							table.insert(gBattleItemsToSkip_table, {SwapCandidateItem,"i"})
-							print("		added to skiplist: "..string.format("%x",SwapCandidateItem))
+							insertIntoSkipList(gBattleItemsToSkip_table, {SwapCandidateItem,"i"})
+							print("		added to skiplist -i: "..string.format("%x",SwapCandidateItem))
 						end
 						
 						print("END	 processBattleOrInventoryScan() - SwapCandidateItem ~= nil and PotentiallyDepletedItem == SwapCandidateItem")
@@ -2386,11 +2446,11 @@ function processBattleOrInventoryScan(MODE)
 		-- PotentiallyDepletedItem never found another item that could have been swapped with it.
 		-- an actual depletion occurred.
 		if MODE == "battle" then
-			table.insert(gBattleItemsToSkip_table, {PotentiallyDepletedItem,"i"})
-			print("		added to skiplist: "..string.format("%x",PotentiallyDepletedItem))
+			insertIntoSkipList(gBattleItemsToSkip_table, {PotentiallyDepletedItem,"i"})
+			print("		added to skiplist -i: "..string.format("%x",PotentiallyDepletedItem))
 		end
 
-		if not isItemInSkipList(PotentiallyDepletedItem) then
+		if not isItemInSkipList(PotentiallyDepletedItem, "i") and not isItemInSkipList(PotentiallyDepletedItem, "e") then
 			updateTrackerItem(PotentiallyDepletedItem, -1 * PotentiallyDepletedItemQty)
 		end
 		
@@ -2399,7 +2459,7 @@ function processBattleOrInventoryScan(MODE)
 	if SwapCandidateItem ~= nil  and PotentiallyDepletedItem == nil then
 		-- use happened
 		if MODE == "menu_inventory_or_cave" then
-			if not isItemInSkipList(SwapCandidateItem) then
+			if not isItemInSkipList(SwapCandidateItem,"i") and not isItemInSkipList(SwapCandidateItem,"e") then
 				updateTrackerItem(SwapCandidateItem, SwapCandidateItemQty)
 			end
 		end
@@ -2544,6 +2604,14 @@ function isItemInSkipList(itemid, type)
 end
 
 
+function insertIntoSkipList(table_input, value)
+	print("START insertIntoSkipList()")
+	value1 = value[1]
+	value2 = value[2]
+	print("		inserting 0x"..string.format("%x",value1).." -"..value2)
+	table.insert(table_input, value)
+	print("END insertIntoSkipList()")
+end
 
 
 
@@ -2649,6 +2717,8 @@ initShopList_table()
 -- [x]swap item with empty (up/down)
 -- [x]swap item with empty (down/up)
 -- [x]swap equipped item down to [empty-inventory-slot] 
+-- [ ]equip item to empty slot (opposite of above)
+
 -- [x]swap equipped item down to [existing item inventory slot]
 -- [o]swap equipped item with single qty item (i.e. equipped Dirk x01 with Knife x01)
 -- [o]swap equipped item with multi qty item (i.e. equipped Dirk x01 with Knife x02)

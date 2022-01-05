@@ -2231,6 +2231,12 @@ function updateInventoryItems(segment)
 		gPrevInventoryItems[i] = gInventoryItems[i]
         gInventoryItems[i] = segment:ReadUInt8(START_INVENTORY_ITEMS+i) 
 
+		--debug
+		if gInventoryItems[i] ~= 0xFF then
+			print("		updateInventoryItems() i: "..i.." item: "..gItemNames[gInventoryItems[i]].." from "..gItemNames[gPrevInventoryItems[i]].." to "..gItemNames[gInventoryItems[i]])
+		end
+		--end debug
+
 		if gPrevInventoryItems[i] ~= gInventoryItems[i] then
 			gPrevInventoryItemsChangeCount = gPrevInventoryItemsChangeCount + 1
 		end
@@ -2256,7 +2262,7 @@ function updateInventoryItemQuantities(segment)
 
 		--debug
 		if gInventoryItems[i] ~= 0xFF then
-			print("		i: "..i.." item: "..gItemNames[gInventoryItems[i]])
+			print("		updateInventoryItemQuantities() i: "..i.." item: "..gItemNames[gInventoryItems[i]].." qty "..gPrevInventoryQuantities[i].." to "..gInventoryQuantities[i])
 		end
 		--end debug
 
@@ -2277,6 +2283,10 @@ end
 
 function processBattleOrInventoryScan(MODE)
 	print("START	processBattleOrInventoryScan("..MODE..")	gInMenu_Significant: "..tostring(gInMenu_Significant).."		gPrevInventoryItemsChangeCount: "..gPrevInventoryItemsChangeCount)
+	
+	--important: reinitialize skip table
+	gBattleItemsToSkip_table = {}
+
 	if gInMenu == true and gInMenu_Significant ~= true then
 		print("END out 0...")
 		return
@@ -2321,12 +2331,26 @@ function processBattleOrInventoryScan(MODE)
 			return
 		end
 
-		if currentItem == prevItem and currentQty == prevQty then -- item (could be blank/empty) hasn't moved.
-			if currentItem == 0xFF and currentQty == 0 then
-				----print("		emptyyyyyyyyyy") --do nothing
-			else
-				----print("		same item!: "..gItemNames[gBattleInventoryItems])
+		if currentQty == prevQty and (currentItem == prevItem or (currentItem == 0xFF and currentQty == 0) or (prevItem == 0xFF and currentItem ~= 0xFF) ) then 
+			-- if currentItem == prevItem then 
+			-- 	--nothing changed, at all. Like, for sure.
+			-- elseif currentItem ~= prevItem then 
+			-- 	--hmmm. if an item swap occurred and both items had the same qty.
+			-- 	--we should flag this through to the lower item logic via refactoring main if, above.
+			-- elseif currentItem == 0xFF and currentQty == 0 then 
+			-- 	--READ THIS AS: This item quantity went from 0 to 0. Therefore, whether it was blank or not, then it was an empty slot.
+			-- 	--It was empty and is now empty. Do nothing
+			-- elseif prevItem == 0xFF and currentItem ~= 0xFF
+			-- 	--this is a recently acquired item, whose qty didn't change. do nothing.
+			-- 	--this is a special case where the recently acquired item has its PrevItem still set to 0xFF and since no other new item names have
+			-- 	--been detected, then this type of item (newly acquired) isn't caught by the obvious conditional check of "currentQty == prevQty and currentItem == prevItem".
+			-- else
+			
+			--debug
+			if currentItem ~= prevItem then 
+			 	print("		no changes detected for: "..string.format("%x",currentItem))
 			end
+			--end debug
 		else
 			IN_SKIPLIST = false
 			if MODE == "battle" then

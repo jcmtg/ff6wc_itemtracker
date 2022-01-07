@@ -1455,7 +1455,7 @@ function updateTrackerItem(itemid_input, qty)
 end
 
 function incrementItem(stringType, itemid, qty)
-	--print("START incrementItem()")
+	print("START incrementItem() type: "..stringType)
 	--print("		UI update -> Looking up: "..stringType.."_"..gItemNames[itemid])
 	local mainLabel = Tracker:FindObjectForCode(stringType.."_"..gItemNames[itemid])
 	if mainLabel.Active == false then
@@ -1473,7 +1473,7 @@ function incrementItem(stringType, itemid, qty)
 	end
 	
 	calcAndSetQty(tens_label,ones_label, qty)
-	--print("END incrementItem()")
+	print("END incrementItem()")
 end
 
 function calcAndSetQty(tens_label, ones_label, qty)
@@ -2376,7 +2376,7 @@ function processBattleOrInventoryScan(MODE)
 			
 			if not IN_SKIPLIST then
 				print("		prevItem: 0x"..string.format("%x",prevItem).."	currentItem: 0x"..string.format("%x",currentItem).."	prevQty: "..prevQty.."	currentQty: "..currentQty)
-				if currentItem ~= prevItem and currentItem ~= 0xFF and currentQty ~= 0 then 
+				if currentItem ~= prevItem and currentItem ~= 0xFF and currentQty ~= 0 and prevItem ~= 0xFF then 
 					--BATTLE: 	some non-empty item showed up in place of a previous item. Maybe a swap happened. Maybe reward.
 					--MENU:		either chest, reward, or swap
 					print("		processBattleOrInventoryScan() -> 0x"..string.format("%x",currentItem).." showed up!")
@@ -2415,21 +2415,16 @@ function processBattleOrInventoryScan(MODE)
 						--new item(s)!
 						updateTrackerItem(currentItem, currentQty)
 					end
-				elseif currentItem == prevItem and currentQty ~= prevQty then --an item was used!
+				elseif currentQty ~= prevQty then --an item was used!
 					if MODE == "battle" then
 						insertIntoSkipList(gBattleItemsToSkip_table, {currentItem,"i"})
 						print("		added to skiplist -i: "..string.format("%x",currentItem))
 					end
-
-					if currentQty > prevQty then
 							
-							if MODE == "battle" then
-								--ignore battle rewards, let cave-mode handle it
-							else
-								updateTrackerItem(currentItem, 1 )
-							end
-					elseif currentQty < prevQty then
-							updateTrackerItem(currentItem, currentQty - prevQty)
+					if MODE == "battle" then
+						--ignore battle rewards, let cave-mode handle it
+					else
+						updateTrackerItem(currentItem, currentQty - prevQty)
 					end
 				elseif currentItem == 0xFF and currentQty == 0 then --possible deplete usage. 
 					PotentiallyDepletedItem = prevItem
@@ -2735,6 +2730,11 @@ initBattleInventoryItems()
 initBattleInventoryQuantities() 
 initShopList_table()
 
+local treasures = Tracker:FindObjectForCode("Treasure")
+  treasures.AcquiredCount = 111
+
+  local aaa = Tracker:FindObjectForCode("Chest_Air Lancet")
+  aaa.AcquiredCount = 111
 
 -- battle items
 -- [x]use item -1

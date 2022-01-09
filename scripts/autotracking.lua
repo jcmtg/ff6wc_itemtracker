@@ -520,6 +520,48 @@ function isInPrevSubMenuContexts(contextid)
 
 end
 
+function determineLatestBetweenBuySell()
+	print("START	 determineLatestBetweenBuySell()")
+	local BuyIndex = -1
+	local SellIndex = -1
+
+	local lengthOfTable = 0
+    for _ in pairs(gPrevSubMenuContexts_table) do lengthOfTable = lengthOfTable + 1 end
+    
+    if lengthOfTable == 0 then
+        return ""
+    end
+
+    for index, value in ipairs(gPrevSubMenuContexts_table) do
+        
+        if value == CONTEXT_MENU_SUB_SHOP_BUY_1 then
+            BuyIndex = index
+		elseif value == CONTEXT_MENU_SUB_SHOP_SELL_1 then
+            SellIndex = index
+		else
+			--print("		prevContext: "..value)
+        end
+    end
+ 
+	print("		BuyIndex: "..BuyIndex)
+	print("		SellIndex: "..SellIndex)
+	
+	if BuyIndex ~= -1 and SellIndex == -1 then
+		return "buy"
+	elseif BuyIndex == -1 and SellIndex ~= -1 then
+		return "sell"
+	elseif BuyIndex > SellIndex then
+		return "buy"
+	elseif SellIndex > BuyIndex then
+		return "sell"
+	else
+		return ""
+	end
+	
+
+	
+     
+end
 
 
 function trackNewlyRecruitedCharacterEquipment(characterIndex)
@@ -1422,13 +1464,16 @@ function updateTrackerItem(itemid_input, qty)
 	----print("		qty"..qty)
 
 	
-	if gInMenu == true and (gInMenu_SubType >= CONTEXT_MENU_SUB_SHOP_BUY_1 and gInMenu_SubType <= CONTEXT_MENU_SUB_SHOP_BUY_3) and qty > 0 then --buy
+	--if gInMenu == true and (gInMenu_SubType >= CONTEXT_MENU_SUB_SHOP_BUY_1 and gInMenu_SubType <= CONTEXT_MENU_SUB_SHOP_BUY_3) and qty > 0 then --buy
+	if isInPrevSubMenuContexts(CONTEXT_MENU_SUB_SHOP_BUY_1) and determineLatestBetweenBuySell() == "buy" then
 		--print("		d")
 		incrementItem("buy", itemid, qty)
-	elseif gInMenu == true and (gInMenu_SubType >= CONTEXT_MENU_SUB_SHOP_SELL_1 and gInMenu_SubType <= CONTEXT_MENU_SUB_SHOP_SELL_3) and qty < 0  then --sell
+	--elseif gInMenu == true and (gInMenu_SubType >= CONTEXT_MENU_SUB_SHOP_SELL_1 and gInMenu_SubType <= CONTEXT_MENU_SUB_SHOP_SELL_3) and qty < 0  then --sell
+	elseif isInPrevSubMenuContexts(CONTEXT_MENU_SUB_SHOP_SELL_1) and determineLatestBetweenBuySell() == "sell" then
 		--print("		e")
 		incrementItem("sell", itemid, qty)
-	elseif gInMenu == true and gInMenu_Significant == true and qty < 0 then --menu use
+	--elseif gInMenu == true and gInMenu_Significant == true and qty < 0 then --menu use
+	elseif isInPrevSubMenuContexts(CONTEXT_MENU_SUB_ITEMS_USE_ITEM_PARTY_VISIBLE)  then
 		--print("		AA")
 		incrementItem("use", itemid, qty)
 	elseif gInCave == true then 
@@ -1455,6 +1500,7 @@ function updateTrackerItem(itemid_input, qty)
 end
 
 function incrementItem(stringType, itemid, qty)
+	print("///// type: "..stringType)
 	--print("START incrementItem()")
 	--print("		UI update -> Looking up: "..stringType.."_"..gItemNames[itemid])
 	local mainLabel = Tracker:FindObjectForCode(stringType.."_"..gItemNames[itemid])
@@ -2242,7 +2288,17 @@ function updateInventoryItems(segment)
 			gPrevInventoryItemsChangeCount = gPrevInventoryItemsChangeCount + 1
 		end
     end
-	print("END updateInventoryItems() - > START")
+
+	
+	if gRunProcessInvAfterUpdateItem ~= nil then
+		if gRunProcessInvAfterUpdateItem == true then
+			processBattleOrInventoryScan("menu_inventory_or_cave")
+			gRunProcessInvAfterUpdateItem = false
+		end
+	end
+	
+
+	print("END updateInventoryItems() ")
 end
 
 function updateInventoryItemQuantities(segment)
@@ -2303,9 +2359,9 @@ function processBattleOrInventoryScan(MODE)
 	
 
     local PotentiallyDepletedItem
-    local PotentiallyDepletedItemQty
+    local PotentiallyDepletedItemQty_change
     local SwapCandidateItem 
-	local SwapCandidateItemQty
+	local SwapCandidateItemQty_change
 
 	local currentItem
 	local prevItem
@@ -2329,6 +2385,15 @@ function processBattleOrInventoryScan(MODE)
 		
 		if currentItem == nil or currentQty == nil or prevItem == nil or prevQty == nil then
 			print("nil detected")
+			return
+		end
+
+		if prevItem == currentItem and prevQty ~= currentQty then
+			--handle where ItemNames are scanned AFTER itemQuantities aka Quantity was updated but item was not.
+			print("desync detected between Quant and Items..Running Proc AFTER items!")
+
+			gRunProcessInvAfterUpdateItem = true
+			
 			return
 		end
 
@@ -2384,7 +2449,7 @@ function processBattleOrInventoryScan(MODE)
 						SwapCandidateItem = currentItem
 						print("		SwapCandidateItem set to: "..string.format("%x",currentItem))
 
-						SwapCandidateItemQty = currentQty
+						SwapCandidateItemQty_change = currentQty - prevQty
 
 						if PotentiallyDepletedItem ~= nil and PotentiallyDepletedItem == SwapCandidateItem  then
 							-- PotentiallyDepletedItem was detected prior to now, but was moved upward to an empty slot which
@@ -2433,7 +2498,7 @@ function processBattleOrInventoryScan(MODE)
 					end
 				elseif currentItem == 0xFF and currentQty == 0 then --possible deplete usage. 
 					PotentiallyDepletedItem = prevItem
-					PotentiallyDepletedItemQty = prevQty
+					PotentiallyDepletedItemQty_change = currentQty - prevQty
 					print("		PotentiallyDepletedItem set to: "..string.format("%x",PotentiallyDepletedItem))
 
 					if SwapCandidateItem ~= nil and PotentiallyDepletedItem == SwapCandidateItem  then
@@ -2476,7 +2541,7 @@ function processBattleOrInventoryScan(MODE)
 		end
 
 		if not isItemInSkipList(PotentiallyDepletedItem, "i") and not isItemInSkipList(PotentiallyDepletedItem, "e") then
-			updateTrackerItem(PotentiallyDepletedItem, -1 * PotentiallyDepletedItemQty)
+			updateTrackerItem(PotentiallyDepletedItem, -1 * PotentiallyDepletedItemQty_change)
 		end
 		
 	end
@@ -2485,14 +2550,13 @@ function processBattleOrInventoryScan(MODE)
 		-- use happened
 		if MODE == "menu_inventory_or_cave" then
 			if not isItemInSkipList(SwapCandidateItem,"i") and not isItemInSkipList(SwapCandidateItem,"e") then
-				updateTrackerItem(SwapCandidateItem, SwapCandidateItemQty)
+				updateTrackerItem(SwapCandidateItem, SwapCandidateItemQty_change)
 			end
 		end
 	end
 
 	 
  
-  
 	print("END	 processBattleOrInventoryScan()")
 end
 
